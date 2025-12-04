@@ -4,6 +4,14 @@
 
 { config, pkgs, ... }:
 
+let
+  rebuild-script = pkgs.writeScriptBin "rebuild" ''
+    #!/usr/bin/env bash
+    cd /etc/nixos
+    exec ${pkgs.bash}/bin/bash /etc/nixos/rebuild.sh "$@"
+  '';
+in
+
 {
   imports = [
     # Include the results of the hardware scan.
@@ -121,6 +129,9 @@
     rust-analyzer
     clang-tools # clangd für C/C++
     vscode-langservers-extracted # JSON, HTML, CSS LSPs
+
+    # bash scripts
+    rebuild-script
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
