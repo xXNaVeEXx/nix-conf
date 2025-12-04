@@ -111,5 +111,6 @@
     name = "gamzat";
     home = "/Users/gamzat";
     shell = pkgs.zsh;
+    uid = 501;
   };
 }
