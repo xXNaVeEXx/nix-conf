@@ -14,6 +14,9 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  system.primaryUser = "gamzat";
+
+
   environment.systemPackages = with pkgs; [
     git
     neovim
@@ -92,8 +95,6 @@
       "discord"
     ];
   };
-
-  services.nix-daemon.enable = true;
 
   fonts.packages = with pkgs; [
     (nerdfonts.override {
