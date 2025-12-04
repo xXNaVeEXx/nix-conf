@@ -13,5 +13,8 @@
     streaming = {
       sunshine = lib.mkEnableOption "Sunshine streaming server";
     };
+    browser = {
+      brave = lib.mkEnableOption "Brave Browser";
+    };
   };
 }

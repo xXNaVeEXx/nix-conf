@@ -1,4 +1,9 @@
-{ pkgs, dotfiles, ... }:
+{
+  config,
+  pkgs,
+  dotfiles,
+  ...
+}:
 
 {
   home.stateVersion = "25.11";
@@ -6,6 +11,16 @@
   programs.neovim = {
     enable = true;
     defaultEditor = true;
+  };
+
+  programs.git = {
+    enable = true;
+    userName = "Gamzat";
+    userEmail = "mukailov.g@gmail.com";
+    extraConfig = {
+      init.defaultBranch = "main";
+      pull.rebase = true;
+    };
   };
 
   home.file.".config/nvim" = {
