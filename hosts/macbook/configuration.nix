@@ -1,6 +1,9 @@
 { config, pkgs, ... }:
 
 {
+
+   nix.enable = false;
+
   nix.settings = {
     experimental-features = [
       "nix-command"
