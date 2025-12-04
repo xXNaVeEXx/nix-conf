@@ -25,6 +25,7 @@ in
     ../../users.nix
     ../../modules/networking.nix
     ../../modules/services.nix
+    ../../modules/browser/brave.nix
 
   ];
 
