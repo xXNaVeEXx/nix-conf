@@ -24,13 +24,19 @@
     source = "${dotfiles}/zsh/.p10k.zsh";
   };
 
-  programs.git = {
+   programs.git = {
     enable = true;
-    userName = "Gamzat";
-    userEmail = "mukailov.g@gmail.com";
-    extraConfig = {
-      init.defaultBranch = "main";
-      pull.rebase = true;
+    settings = {
+      user = {
+        name = "Gamzat";
+        email = "mukailov.g@gmail.com";
+      };
+      init = {
+        defaultBranch = "main";
+      };
+      pull = {
+        rebase = true;
+      };
     };
   };
 

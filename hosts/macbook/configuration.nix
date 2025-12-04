@@ -37,7 +37,6 @@
     rust-analyzer
     clang-tools
     vscode-langservers-extracted
-    rustdesk
   ];
 
   system.stateVersion = 5;
