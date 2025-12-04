@@ -13,6 +13,14 @@
     recursive = true;
   };
 
+  home.file.".p10k.zsh" = {
+    source = "${dotfiles}/zsh/.p10k.zsh";
+  };
+
+  home.file.".zshrc" = {
+    source = "${dotfiles}/zsh/.zshrc";
+  };
+
   programs.bash.enable = true;
 
   programs.ssh = {
