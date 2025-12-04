@@ -23,8 +23,8 @@
       self,
       nixpkgs,
       home-manager,
-      ...
-    }@inputs:
+      dotfiles,
+    }:
     {
       nixosConfigurations = {
         nixos = nixpkgs.lib.nixosSystem {
