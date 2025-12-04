@@ -2,7 +2,7 @@
 
 {
 
-   nix.enable = false;
+  nix.enable = false;
 
   nix.settings = {
     experimental-features = [
@@ -18,7 +18,6 @@
   nixpkgs.config.allowUnfree = true;
 
   system.primaryUser = "gamzat";
-
 
   environment.systemPackages = with pkgs; [
     git
@@ -40,6 +39,7 @@
     rust-analyzer
     clang-tools
     vscode-langservers-extracted
+    claude-code
   ];
 
   system.stateVersion = 5;
@@ -99,10 +99,10 @@
   };
 
   fonts.packages = with pkgs; [
-  (nerd-fonts.fira-code)
-  (nerd-fonts.jetbrains-mono)
-  (nerd-fonts.meslo-lg)
-];
+    (nerd-fonts.fira-code)
+    (nerd-fonts.jetbrains-mono)
+    (nerd-fonts.meslo-lg)
+  ];
 
   programs.zsh.enable = true;
 

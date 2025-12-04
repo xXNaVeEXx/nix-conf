@@ -133,6 +133,7 @@ in
     rust-analyzer
     clang-tools # clangd für C/C++
     vscode-langservers-extracted # JSON, HTML, CSS LSPs
+    claude-code
 
     # bash scripts
     rebuild-script
