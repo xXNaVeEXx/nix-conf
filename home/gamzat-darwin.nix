@@ -64,10 +64,20 @@
     nix-direnv.enable = true;
   };
 
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = false;  # Manual integration in .zshrc
+  };
+
+  programs.zoxide = {
+    enable = true;
+    enableZshIntegration = false;  # Manual integration in .zshrc
+  };
+
   home.packages = with pkgs; [
     bat
     eza
-    zoxide
+    zsh
     go
   ];
 }

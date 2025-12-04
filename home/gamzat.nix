@@ -38,6 +38,21 @@
 
   programs.bash.enable = true;
 
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = false;  # Manual integration in .zshrc
+  };
+
+  programs.zoxide = {
+    enable = true;
+    enableZshIntegration = false;  # Manual integration in .zshrc
+  };
+
+  # zsh is managed manually via dotfiles
+  home.packages = with pkgs; [
+    zsh
+  ];
+
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
