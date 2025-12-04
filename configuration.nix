@@ -8,7 +8,6 @@
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
-    <home-manager/nixos>
 
     ./options.nix
 
@@ -19,6 +18,12 @@
     ./modules/networking.nix
     ./modules/services.nix
 
+  ];
+
+  # activate flakes
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
   ];
 
   mySystem = {
@@ -35,10 +40,6 @@
   };
 
   nixpkgs.config.allowUnfree = true;
-
-  home-manager.users.gamzat = ./home/gamzat.nix;
-
-  home-manager.users.root = ./home/root.nix;
 
   # Bootloader.
   boot.loader.grub.enable = true;
@@ -104,9 +105,7 @@
   environment.systemPackages = with pkgs; [
     #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     #  wget
-    (import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixpkgs-unstable.tar.gz") {
-      config.allowUnfree = true;
-    }).rustdesk
+    rustdesk
     git
     neovim
     gcc
