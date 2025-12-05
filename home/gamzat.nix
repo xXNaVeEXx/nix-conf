@@ -53,7 +53,15 @@
     zsh
     bat
     eza
+    wezterm
+    (nerdfonts.override { fonts = [ "Gohu" ]; })
   ];
+
+  # Wezterm configuration from dotfiles
+  home.file.".config/wezterm" = {
+    source = "${dotfiles}/wezterm";
+    recursive = true;
+  };
 
   programs.ssh = {
     enable = true;
