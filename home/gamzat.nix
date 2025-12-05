@@ -3,6 +3,7 @@
   pkgs,
   lib,
   dotfiles,
+  osConfig,
   ...
 }:
 
@@ -57,19 +58,19 @@
     tmux
     lazygit
     nerd-fonts.gohufont
-  ] ++ lib.optionals config.mySystem.passwordManager.bitwarden [
+  ] ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
     bitwarden-desktop
     bitwarden-cli
-  ] ++ lib.optionals config.mySystem.terminal.wezterm [
+  ] ++ lib.optionals osConfig.mySystem.terminal.wezterm [
     wezterm
-  ] ++ lib.optionals config.mySystem.streaming.moonlight [
+  ] ++ lib.optionals osConfig.mySystem.streaming.moonlight [
     moonlight-qt
-  ] ++ lib.optionals config.mySystem.clipboard.copyq [
+  ] ++ lib.optionals osConfig.mySystem.clipboard.copyq [
     copyq
   ];
 
   # Wezterm configuration from dotfiles
-  home.file.".config/wezterm" = lib.mkIf config.mySystem.terminal.wezterm {
+  home.file.".config/wezterm" = lib.mkIf osConfig.mySystem.terminal.wezterm {
     source = "${dotfiles}/wezterm";
     recursive = true;
   };
