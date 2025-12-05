@@ -7,6 +7,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# System Detection
+detect_system() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SYSTEM_TYPE="darwin"
+        REBUILD_CMD="darwin-rebuild"
+        HOSTNAME="macbook"
+    else
+        SYSTEM_TYPE="nixos"
+        REBUILD_CMD="nixos-rebuild"
+        HOSTNAME="nixos"
+    fi
+}
+
 # Funktionen
 print_header() {
     echo -e "${BLUE}================================${NC}"
@@ -29,17 +42,20 @@ print_warning() {
 # Hilfe anzeigen
 show_help() {
     cat << EOF
-NixOS Rebuild Script
+Nix Rebuild Script (NixOS & macOS)
 
 Usage: $0 [OPTION]
+
+Detected System: $SYSTEM_TYPE
+Hostname: $HOSTNAME
 
 Optionen:
   switch              System bauen und aktivieren (default)
   update              Alle Flake-Inputs updaten
   update-dotfiles     Nur Dotfiles updaten
   full                Update + Switch (alles updaten und bauen)
-  test                System bauen aber nicht aktivieren
-  boot                Für nächsten Boot vorbereiten
+  test                System bauen aber nicht aktivieren (nur NixOS)
+  boot                Für nächsten Boot vorbereiten (nur NixOS)
   check               Flake auf Fehler prüfen
   clean               Alte Generationen aufräumen
   help                Diese Hilfe anzeigen
@@ -51,11 +67,11 @@ Beispiele:
 EOF
 }
 
-# Prüfe ob wir in /etc/nixos sind
+# Prüfe ob wir im richtigen Verzeichnis sind
 check_directory() {
     if [[ ! -f "flake.nix" ]]; then
         print_error "flake.nix nicht gefunden!"
-        echo "Bitte führe das Script in /etc/nixos aus."
+        echo "Bitte führe das Script im nix-config Verzeichnis aus."
         exit 1
     fi
 }
@@ -75,7 +91,7 @@ check_git_status() {
 # System bauen
 do_switch() {
     print_header "System wird gebaut und aktiviert..."
-    if sudo nixos-rebuild switch --flake .#nixos; then
+    if sudo $REBUILD_CMD switch --flake .#$HOSTNAME; then
         print_success "System erfolgreich gebaut!"
     else
         print_error "Build fehlgeschlagen!"
@@ -85,8 +101,13 @@ do_switch() {
 
 # Test build (ohne Aktivierung)
 do_test() {
+    if [[ "$SYSTEM_TYPE" == "darwin" ]]; then
+        print_error "'test' ist nur für NixOS verfügbar, nicht für macOS"
+        exit 1
+    fi
+
     print_header "System wird getestet (ohne Aktivierung)..."
-    if sudo nixos-rebuild test --flake .#nixos; then
+    if sudo $REBUILD_CMD test --flake .#$HOSTNAME; then
         print_success "Test erfolgreich!"
     else
         print_error "Test fehlgeschlagen!"
@@ -96,8 +117,13 @@ do_test() {
 
 # Boot build
 do_boot() {
+    if [[ "$SYSTEM_TYPE" == "darwin" ]]; then
+        print_error "'boot' ist nur für NixOS verfügbar, nicht für macOS"
+        exit 1
+    fi
+
     print_header "System für nächsten Boot vorbereiten..."
-    if sudo nixos-rebuild boot --flake .#nixos; then
+    if sudo $REBUILD_CMD boot --flake .#$HOSTNAME; then
         print_success "Boot-Konfiguration erstellt!"
     else
         print_error "Boot-Build fehlgeschlagen!"
@@ -168,8 +194,9 @@ do_full() {
 
 # Main
 main() {
+    detect_system
     check_directory
-    
+
     case "${1:-switch}" in
         switch)
             check_git_status

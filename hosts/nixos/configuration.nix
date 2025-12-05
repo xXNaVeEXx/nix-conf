@@ -7,8 +7,19 @@
 let
   rebuild-script = pkgs.writeScriptBin "rebuild" ''
     #!/usr/bin/env bash
-    cd /etc/nixos
-    exec ${pkgs.bash}/bin/bash /etc/nixos/rebuild.sh "$@"
+
+    # Find nix-config directory
+    if [ -d /etc/nixos ]; then
+      CONFIG_DIR="/etc/nixos"
+    elif [ -d "$HOME/nix-config" ]; then
+      CONFIG_DIR="$HOME/nix-config"
+    else
+      echo "Error: Could not find nix-config directory"
+      exit 1
+    fi
+
+    cd "$CONFIG_DIR"
+    exec ${pkgs.bash}/bin/bash "$CONFIG_DIR/rebuild.sh" "$@"
   '';
 in
 
