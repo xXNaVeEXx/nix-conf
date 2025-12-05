@@ -52,13 +52,6 @@
     };
   };
 
-  programs.tmux = {
-    enable = true;
-    clock24 = true;
-    keyMode = "vi";
-    terminal = "screen-256color";
-  };
-
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
@@ -80,12 +73,23 @@
     zsh
     go
     wezterm
+    tmux
     nerd-fonts.gohufont
   ];
 
   # Wezterm configuration from dotfiles
   home.file.".config/wezterm" = {
     source = "${dotfiles}/wezterm";
+    recursive = true;
+  };
+
+  # Tmux configuration from dotfiles
+  home.file.".tmux.conf" = {
+    source = "${dotfiles}/tmux/.tmux.conf";
+  };
+
+  home.file.".tmux" = {
+    source = "${dotfiles}/tmux/.tmux";
     recursive = true;
   };
 }
