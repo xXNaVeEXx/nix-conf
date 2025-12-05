@@ -1,5 +1,7 @@
 { config, lib, ... }:
 
 {
-  services.tailscale.enable = lib.mkIf config.mySystem.networking.tailscale;
+  config = lib.mkIf config.mySystem.networking.tailscale {
+    services.tailscale.enable = true;
+  };
 }
