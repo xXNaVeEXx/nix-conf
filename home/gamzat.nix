@@ -51,6 +51,8 @@
   # zsh is managed manually via dotfiles
   home.packages = with pkgs; [
     zsh
+    bat
+    eza
   ];
 
   programs.ssh = {
