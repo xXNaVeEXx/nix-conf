@@ -22,9 +22,11 @@ in
 {
   imports = [
     ../../options.nix
+    ../../modules/networking/tailscale.nix
   ];
 
   mySystem = {
+    networking.tailscale = true;
     passwordManager.bitwarden = true;
     terminal.wezterm = true;
     streaming.moonlight = true;
@@ -69,6 +71,7 @@ in
     clang-tools
     vscode-langservers-extracted
     claude-code
+    gemini-cli
 
     # bash scripts
     rebuild-script
@@ -124,15 +127,25 @@ in
       cleanup = "zap";
     };
 
-    casks = [
-      "visual-studio-code"
-      "iterm2"
-      "rectangle"
-      "firefox"
-      "slack"
-      "discord"
-    ];
-  };
+        casks = [
+
+          "visual-studio-code"
+
+          "iterm2"
+
+          "rectangle"
+
+          "firefox"
+
+          "slack"
+
+          "discord"
+
+          "docker"
+
+        ];
+
+      };
 
   fonts.packages = with pkgs; [
     (nerd-fonts.fira-code)

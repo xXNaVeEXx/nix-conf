@@ -26,5 +26,8 @@
     clipboard = {
       copyq = lib.mkEnableOption "Clipboard manager (CopyQ on Linux, Maccy on macOS)";
     };
+    networking = {
+      tailscale = lib.mkEnableOption "Tailscale";
+    };
   };
 }

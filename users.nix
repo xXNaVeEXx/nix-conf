@@ -8,6 +8,7 @@
       "networkmanager"
       "wheel"
       "input" # for mouse input when streaming
+      "docker"
     ];
     shell = pkgs.zsh;
     packages = with pkgs; [

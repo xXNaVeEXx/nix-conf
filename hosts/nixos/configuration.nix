@@ -37,7 +37,7 @@ in
     ../../modules/networking.nix
     ../../modules/services.nix
     ../../modules/browser/brave.nix
-
+    ../../modules/networking/tailscale.nix
   ];
 
   # activate flakes
@@ -47,6 +47,8 @@ in
   ];
 
   mySystem = {
+
+    networking.tailscale = true;
 
     desktop = {
       enable = true;
@@ -161,6 +163,8 @@ in
   #   enable = true;
   #   enableSSHSupport = true;
   # };
+
+  virtualisation.docker.enable = true;
 
   # List services that you want to enable:
 
