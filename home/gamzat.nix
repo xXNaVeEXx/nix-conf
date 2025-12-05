@@ -55,6 +55,7 @@
     eza
     wezterm
     tmux
+    lazygit
     nerd-fonts.gohufont
   ];
 

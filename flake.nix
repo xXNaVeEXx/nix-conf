@@ -45,6 +45,7 @@
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "backup";
               home-manager.extraSpecialArgs = { inherit dotfiles; };
               home-manager.users.gamzat = import ./home/gamzat.nix;
               home-manager.users.root = import ./home/root.nix;
@@ -65,6 +66,7 @@
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "backup";
               home-manager.extraSpecialArgs = { inherit dotfiles; };
               home-manager.users.gamzat = import ./home/gamzat-darwin.nix;
             }

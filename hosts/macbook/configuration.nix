@@ -50,6 +50,10 @@
       orientation = "bottom";
       show-recents = false;
       tilesize = 48;
+      persistent-apps = [
+        "/Applications/Brave Browser.app"
+        "/Users/gamzat/Applications/Home Manager Apps/WezTerm.app"
+      ];
     };
 
     finder = {
