@@ -12,9 +12,19 @@
     };
     streaming = {
       sunshine = lib.mkEnableOption "Sunshine streaming server";
+      moonlight = lib.mkEnableOption "Moonlight streaming client";
     };
     browser = {
       brave = lib.mkEnableOption "Brave Browser";
+    };
+    passwordManager = {
+      bitwarden = lib.mkEnableOption "Bitwarden password manager";
+    };
+    terminal = {
+      wezterm = lib.mkEnableOption "WezTerm terminal emulator";
+    };
+    clipboard = {
+      copyq = lib.mkEnableOption "Clipboard manager (CopyQ on Linux, Maccy on macOS)";
     };
   };
 }

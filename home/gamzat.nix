@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   dotfiles,
   ...
 }:
@@ -53,14 +54,22 @@
     zsh
     bat
     eza
-    wezterm
     tmux
     lazygit
     nerd-fonts.gohufont
+  ] ++ lib.optionals config.mySystem.passwordManager.bitwarden [
+    bitwarden-desktop
+    bitwarden-cli
+  ] ++ lib.optionals config.mySystem.terminal.wezterm [
+    wezterm
+  ] ++ lib.optionals config.mySystem.streaming.moonlight [
+    moonlight-qt
+  ] ++ lib.optionals config.mySystem.clipboard.copyq [
+    copyq
   ];
 
   # Wezterm configuration from dotfiles
-  home.file.".config/wezterm" = {
+  home.file.".config/wezterm" = lib.mkIf config.mySystem.terminal.wezterm {
     source = "${dotfiles}/wezterm";
     recursive = true;
   };

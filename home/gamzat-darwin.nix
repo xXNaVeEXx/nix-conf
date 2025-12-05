@@ -1,4 +1,4 @@
-{ pkgs, dotfiles, ... }:
+{ config, osConfig, pkgs, lib, dotfiles, ... }:
 
 {
   home.stateVersion = "25.11";
@@ -72,14 +72,22 @@
     eza
     zsh
     go
-    wezterm
     tmux
     lazygit
     nerd-fonts.gohufont
+  ] ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
+    bitwarden-desktop
+    bitwarden-cli
+  ] ++ lib.optionals osConfig.mySystem.terminal.wezterm [
+    wezterm
+  ] ++ lib.optionals osConfig.mySystem.streaming.moonlight [
+    moonlight-qt
+  ] ++ lib.optionals osConfig.mySystem.clipboard.copyq [
+    maccy
   ];
 
   # Wezterm configuration from dotfiles
-  home.file.".config/wezterm" = {
+  home.file.".config/wezterm" = lib.mkIf osConfig.mySystem.terminal.wezterm {
     source = "${dotfiles}/wezterm";
     recursive = true;
   };

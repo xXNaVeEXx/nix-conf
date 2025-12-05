@@ -56,7 +56,11 @@ in
 
     gaming.steam = true;
     streaming.sunshine = true;
+    streaming.moonlight = true;
     browser.brave = true;
+    passwordManager.bitwarden = true;
+    terminal.wezterm = true;
+    clipboard.copyq = true;
 
   };
 

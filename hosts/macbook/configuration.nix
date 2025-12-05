@@ -20,6 +20,16 @@ let
 in
 
 {
+  imports = [
+    ../../options.nix
+  ];
+
+  mySystem = {
+    passwordManager.bitwarden = true;
+    terminal.wezterm = true;
+    streaming.moonlight = true;
+    clipboard.copyq = true;
+  };
 
   nix.enable = false;
 
