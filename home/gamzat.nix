@@ -54,7 +54,7 @@
     bat
     eza
     wezterm
-    (nerdfonts.override { fonts = [ "Gohu" ]; })
+    nerd-fonts.gohufont
   ];
 
   # Wezterm configuration from dotfiles
