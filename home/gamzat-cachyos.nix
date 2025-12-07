@@ -95,6 +95,8 @@ in
     moonlight-qt
     copyq
 
+    claude-code
+
     # Custom scripts
     rebuild-script
   ];
