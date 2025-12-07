@@ -1,0 +1,5 @@
+# MangoWC Configuration
+
+# Autostart applications
+exec quickshell
+exec swaybg -c "#1e1e2e"
