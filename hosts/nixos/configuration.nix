@@ -32,6 +32,7 @@ in
 
     ../../modules/desktop/gnome.nix
     ../../modules/desktop/pantheon.nix
+    ../../modules/desktop/mangowc.nix
     ../../modules/gaming/steam.nix
     ../../users.nix
     ../../modules/networking.nix
@@ -54,6 +55,7 @@ in
       enable = true;
       gnome = true;
       pantheon = false;
+      mangowc = true;
     };
 
     gaming.steam = true;

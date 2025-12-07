@@ -19,6 +19,16 @@
       url = "github:xXNaVeEXx/dotfiles";
       flake = false;
     };
+
+    mangowc = {
+      url = "github:DreamMaoMao/mangowc";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    quickshell = {
+      url = "git+https://git.outfoxxed.me/quickshell/quickshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -29,13 +39,15 @@
       home-manager,
       darwin,
       dotfiles,
+      mangowc,
+      quickshell,
     }:
     {
       # NixOS Configuration
       nixosConfigurations = {
         nixos = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
-          specialArgs = { inherit dotfiles; };
+          specialArgs = { inherit dotfiles mangowc quickshell; };
           modules = [
             ./hosts/nixos/configuration.nix
 
@@ -46,7 +58,7 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit dotfiles; };
+              home-manager.extraSpecialArgs = { inherit dotfiles mangowc quickshell; };
               home-manager.users.gamzat = import ./home/gamzat.nix;
               home-manager.users.root = import ./home/root.nix;
             }

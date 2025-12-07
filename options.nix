@@ -6,6 +6,7 @@
       enable = lib.mkEnableOption "desktop environment";
       gnome = lib.mkEnableOption "GNOME desktop";
       pantheon = lib.mkEnableOption "Pantheon desktop";
+      mangowc = lib.mkEnableOption "MangoWC Wayland compositor with Quickshell";
     };
     gaming = {
       steam = lib.mkEnableOption "Steam";
