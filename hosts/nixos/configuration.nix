@@ -56,6 +56,7 @@ in
       gnome = true;
       pantheon = false;
       mangowc = true;
+      bar = "quickshell";  # Options: "waybar" or "quickshell"
     };
 
     gaming.steam = true;

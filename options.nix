@@ -7,6 +7,12 @@
       gnome = lib.mkEnableOption "GNOME desktop";
       pantheon = lib.mkEnableOption "Pantheon desktop";
       mangowc = lib.mkEnableOption "MangoWC Wayland compositor with Quickshell";
+
+      bar = lib.mkOption {
+        type = lib.types.enum [ "waybar" "quickshell" ];
+        default = "waybar";
+        description = "Status bar to use (waybar or quickshell)";
+      };
     };
     gaming = {
       steam = lib.mkEnableOption "Steam";
