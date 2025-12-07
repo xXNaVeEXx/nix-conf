@@ -351,6 +351,53 @@ install_home_manager() {
     fi
 }
 
+# Setze zsh als Standard-Shell
+setup_default_shell() {
+    print_header "Setze zsh als Standard-Shell..."
+
+    # Prüfe aktuelle Shell
+    CURRENT_SHELL=$(getent passwd $USER | cut -d: -f7)
+
+    if [[ "$CURRENT_SHELL" == *"zsh"* ]]; then
+        print_success "zsh ist bereits die Standard-Shell"
+        return 0
+    fi
+
+    # Finde zsh in home-manager installation
+    ZSH_PATH="$HOME/.nix-profile/bin/zsh"
+
+    if [[ ! -x "$ZSH_PATH" ]]; then
+        # Fallback zu system zsh
+        ZSH_PATH=$(which zsh 2>/dev/null || echo "/usr/bin/zsh")
+    fi
+
+    if [[ ! -x "$ZSH_PATH" ]]; then
+        print_warning "zsh nicht gefunden, überspringe Shell-Änderung"
+        print_info "Installiere zsh manuell oder warte bis home-manager es installiert hat"
+        return 1
+    fi
+
+    print_info "Verwende zsh: $ZSH_PATH"
+
+    # Prüfe ob zsh in /etc/shells eingetragen ist
+    if ! grep -q "^${ZSH_PATH}$" /etc/shells 2>/dev/null; then
+        print_info "Füge zsh zu /etc/shells hinzu..."
+        echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
+    fi
+
+    # Ändere Standard-Shell
+    print_info "Ändere Standard-Shell zu zsh..."
+    if chsh -s "$ZSH_PATH"; then
+        print_success "Standard-Shell erfolgreich zu zsh geändert!"
+        print_warning "Bitte melde dich ab und wieder an, damit die Änderung wirksam wird"
+    else
+        print_error "Konnte Standard-Shell nicht ändern"
+        print_info "Du kannst es manuell versuchen mit:"
+        echo -e "${CYAN}  chsh -s $ZSH_PATH${NC}"
+        return 1
+    fi
+}
+
 # Füge Nix zu Shell-Profil hinzu
 setup_shell_profile() {
     print_header "Konfiguriere Shell-Profil..."
@@ -412,24 +459,27 @@ show_summary() {
     echo -e "${GREEN}✓ Flakes aktiviert${NC}"
     echo -e "${GREEN}✓ Home-Manager konfiguriert${NC}"
     echo -e "${GREEN}✓ Shell-Profil aktualisiert${NC}"
+    echo -e "${GREEN}✓ zsh als Standard-Shell konfiguriert${NC}"
     echo ""
 
     print_info "Nächste Schritte:"
     echo ""
-    echo -e "1. ${CYAN}Starte eine neue Shell oder führe aus:${NC}"
-    echo -e "   ${YELLOW}source $HOME/.$(basename $SHELL)rc${NC}"
+    echo -e "1. ${CYAN}Melde dich ab und wieder an${NC} (für zsh und alle Änderungen)"
+    echo -e "   ${YELLOW}logout${NC}  oder einfach neu anmelden"
     echo ""
     echo -e "2. ${CYAN}Teste die Installation:${NC}"
     echo -e "   ${YELLOW}nix --version${NC}"
     echo -e "   ${YELLOW}home-manager --version${NC}"
+    echo -e "   ${YELLOW}echo \$SHELL${NC}  (sollte zsh anzeigen)"
     echo ""
-    echo -e "3. ${CYAN}Verwende das rebuild.sh Script für Updates:${NC}"
-    echo -e "   ${YELLOW}./rebuild.sh switch${NC}"
-    echo -e "   ${YELLOW}./rebuild.sh update${NC}"
-    echo -e "   ${YELLOW}./rebuild.sh full${NC}"
+    echo -e "3. ${CYAN}Verwende den rebuild Befehl für Updates (von überall):${NC}"
+    echo -e "   ${YELLOW}rebuild switch${NC}      # Konfiguration anwenden"
+    echo -e "   ${YELLOW}rebuild update${NC}      # Pakete aktualisieren"
+    echo -e "   ${YELLOW}rebuild full${NC}        # Update + Switch"
+    echo -e "   ${YELLOW}rebuild help${NC}        # Hilfe anzeigen"
     echo ""
 
-    print_warning "Hinweis: Einige Änderungen werden erst nach einem Neustart der Shell aktiv!"
+    print_warning "Wichtig: Melde dich ab und wieder an, damit zsh und alle Änderungen aktiv werden!"
 }
 
 # Hilfe anzeigen
@@ -532,6 +582,7 @@ main() {
 
     if [[ "$SKIP_HOME_MANAGER" == false ]]; then
         install_home_manager
+        setup_default_shell
     fi
 
     show_summary
