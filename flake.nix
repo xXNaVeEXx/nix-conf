@@ -73,5 +73,17 @@
           ];
         };
       };
+
+      # Standalone Home Manager Configuration (for CachyOS and other non-NixOS systems)
+      homeConfigurations = {
+        "gamzat@cachyos" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles; };
+          modules = [
+            ./home/gamzat-cachyos.nix
+            { nixpkgs.config.allowUnfree = true; }
+          ];
+        };
+      };
     };
 }

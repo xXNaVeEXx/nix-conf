@@ -13,10 +13,19 @@ detect_system() {
         SYSTEM_TYPE="darwin"
         REBUILD_CMD="darwin-rebuild"
         HOSTNAME="macbook"
-    else
+    elif [[ -f /etc/os-release ]] && grep -q "ID=cachyos" /etc/os-release; then
+        SYSTEM_TYPE="cachyos"
+        REBUILD_CMD="home-manager"
+        HOSTNAME="gamzat@cachyos"
+    elif [[ -f /etc/NIXOS ]]; then
         SYSTEM_TYPE="nixos"
         REBUILD_CMD="nixos-rebuild"
         HOSTNAME="nixos"
+    else
+        # Default to home-manager for other Linux distros
+        SYSTEM_TYPE="linux"
+        REBUILD_CMD="home-manager"
+        HOSTNAME="gamzat@cachyos"
     fi
 }
 
@@ -76,6 +85,24 @@ check_directory() {
     fi
 }
 
+# Prüfe ob Nix installiert ist (für home-manager Systeme)
+check_nix_installed() {
+    if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
+        if ! command -v nix &> /dev/null; then
+            print_error "Nix ist nicht installiert!"
+            echo ""
+            print_warning "Für CachyOS und andere nicht-NixOS Systeme muss Nix zuerst installiert werden."
+            echo ""
+            echo "Führe das Installations-Script aus:"
+            echo -e "${GREEN}  ./install-nix-home-manager.sh${NC}"
+            echo ""
+            echo "Oder installiere Nix manuell:"
+            echo -e "${GREEN}  sh <(curl -L https://nixos.org/nix/install) --daemon${NC}"
+            exit 1
+        fi
+    fi
+}
+
 # Git Status prüfen
 check_git_status() {
     if [[ -n $(git status --porcelain) ]]; then
@@ -91,18 +118,28 @@ check_git_status() {
 # System bauen
 do_switch() {
     print_header "System wird gebaut und aktiviert..."
-    if sudo $REBUILD_CMD switch --flake .#$HOSTNAME; then
-        print_success "System erfolgreich gebaut!"
+    if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
+        # home-manager doesn't need sudo, use -b backup to backup existing files
+        if $REBUILD_CMD switch --flake .#$HOSTNAME -b backup; then
+            print_success "Home-Manager Konfiguration erfolgreich aktiviert!"
+        else
+            print_error "Build fehlgeschlagen!"
+            exit 1
+        fi
     else
-        print_error "Build fehlgeschlagen!"
-        exit 1
+        if sudo $REBUILD_CMD switch --flake .#$HOSTNAME; then
+            print_success "System erfolgreich gebaut!"
+        else
+            print_error "Build fehlgeschlagen!"
+            exit 1
+        fi
     fi
 }
 
 # Test build (ohne Aktivierung)
 do_test() {
-    if [[ "$SYSTEM_TYPE" == "darwin" ]]; then
-        print_error "'test' ist nur für NixOS verfügbar, nicht für macOS"
+    if [[ "$SYSTEM_TYPE" != "nixos" ]]; then
+        print_error "'test' ist nur für NixOS verfügbar"
         exit 1
     fi
 
@@ -117,8 +154,8 @@ do_test() {
 
 # Boot build
 do_boot() {
-    if [[ "$SYSTEM_TYPE" == "darwin" ]]; then
-        print_error "'boot' ist nur für NixOS verfügbar, nicht für macOS"
+    if [[ "$SYSTEM_TYPE" != "nixos" ]]; then
+        print_error "'boot' ist nur für NixOS verfügbar"
         exit 1
     fi
 
@@ -170,18 +207,36 @@ do_check() {
 # Alte Generationen aufräumen
 do_clean() {
     print_header "Alte Generationen werden angezeigt..."
-    sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
-    echo ""
-    read -p "Wie viele Generationen behalten? (z.B. 5): " keep
-    
-    if [[ $keep =~ ^[0-9]+$ ]]; then
-        print_header "Lösche alte Generationen (behalte letzte $keep)..."
-        sudo nix-env --delete-generations +$keep --profile /nix/var/nix/profiles/system
-        sudo nix-collect-garbage -d
-        print_success "Aufräumen abgeschlossen!"
+
+    if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
+        # home-manager generations
+        home-manager generations
+        echo ""
+        read -p "Generationen älter als X Tage löschen (z.B. 30): " days
+
+        if [[ $days =~ ^[0-9]+$ ]]; then
+            print_header "Lösche Generationen älter als $days Tage..."
+            home-manager expire-generations "-${days} days"
+            nix-collect-garbage -d
+            print_success "Aufräumen abgeschlossen!"
+        else
+            print_error "Ungültige Eingabe!"
+            exit 1
+        fi
     else
-        print_error "Ungültige Eingabe!"
-        exit 1
+        sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
+        echo ""
+        read -p "Wie viele Generationen behalten? (z.B. 5): " keep
+
+        if [[ $keep =~ ^[0-9]+$ ]]; then
+            print_header "Lösche alte Generationen (behalte letzte $keep)..."
+            sudo nix-env --delete-generations +$keep --profile /nix/var/nix/profiles/system
+            sudo nix-collect-garbage -d
+            print_success "Aufräumen abgeschlossen!"
+        else
+            print_error "Ungültige Eingabe!"
+            exit 1
+        fi
     fi
 }
 
@@ -196,6 +251,7 @@ do_full() {
 main() {
     detect_system
     check_directory
+    check_nix_installed
 
     case "${1:-switch}" in
         switch)

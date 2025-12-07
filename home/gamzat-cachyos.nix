@@ -3,12 +3,16 @@
   pkgs,
   lib,
   dotfiles,
-  osConfig,
   ...
 }:
 
 {
+  home.username = "gamzat";
+  home.homeDirectory = "/home/gamzat";
   home.stateVersion = "25.11";
+
+  # Let Home Manager install and manage itself
+  programs.home-manager.enable = true;
 
   programs.neovim = {
     enable = true;
@@ -53,6 +57,7 @@
   };
 
   # zsh is managed manually via dotfiles
+  # Enable all packages that are enabled in NixOS configuration
   home.packages = with pkgs; [
     zsh
     bat
@@ -60,19 +65,17 @@
     tmux
     lazygit
     nerd-fonts.gohufont
-  ] ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
+
+    # CachyOS specific packages (matching NixOS mySystem settings)
     bitwarden-desktop
     bitwarden-cli
-  ] ++ lib.optionals osConfig.mySystem.terminal.wezterm [
     wezterm
-  ] ++ lib.optionals osConfig.mySystem.streaming.moonlight [
     moonlight-qt
-  ] ++ lib.optionals osConfig.mySystem.clipboard.copyq [
     copyq
   ];
 
   # Wezterm configuration from dotfiles
-  home.file.".config/wezterm" = lib.mkIf osConfig.mySystem.terminal.wezterm {
+  home.file.".config/wezterm" = {
     source = "${dotfiles}/wezterm";
     recursive = true;
   };
