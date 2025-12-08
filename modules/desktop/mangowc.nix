@@ -62,6 +62,13 @@ let
   mangoConfig = pkgs.writeText "mango-config" ''
     # MangoWC Configuration
 
+    # Keyboard layout
+    set $kb_layout de
+
+    input type:keyboard {
+        xkb_layout de
+    }
+
     # Keybindings (using Alt for Proxmox compatibility)
     bind=ALT,Return,spawn,wezterm
     bind=ALT,D,spawn,rofi -show drun
@@ -85,6 +92,11 @@ in
   config = lib.mkIf (config.mySystem.desktop.enable && config.mySystem.desktop.mangowc) {
     # Enable MangoWC compositor (already handles portals, polkit, xwayland)
     programs.mango.enable = true;
+
+    # Set keyboard layout environment variables
+    environment.sessionVariables = {
+      XKB_DEFAULT_LAYOUT = "de";
+    };
 
     # Additional useful packages for MangoWC
     environment.systemPackages = with pkgs; [
