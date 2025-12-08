@@ -56,7 +56,7 @@ in
       gnome = true;
       pantheon = false;
       mangowc = true;
-      bar = "quickshell";  # Options: "waybar" or "quickshell"
+      bar = "quickshell"; # Options: "waybar" or "quickshell"
     };
 
     gaming.steam = true;
@@ -153,6 +153,7 @@ in
     rust-analyzer
     clang-tools # clangd für C/C++
     vscode-langservers-extracted # JSON, HTML, CSS LSPs
+    libsForQt5.qt5.qtdeclarative # QML
     claude-code
 
     # bash scripts
