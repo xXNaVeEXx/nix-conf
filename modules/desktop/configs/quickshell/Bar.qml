@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import QtQuick.Layouts
 
 Scope {
   id: root
@@ -24,12 +25,30 @@ Scope {
 
         implicitHeight: 30
 
-        ClockWidget {
-          // remove the id as we don't need it anymore
+        RowLayout {
+          anchors.fill: parent
+          anchors.margins: 5
 
-          anchors.centerIn: parent
-        } // Text
+          // Left side spacer
+          Item {
+            Layout.fillWidth: true
+          }
 
+          // Center - Clock Widget
+          ClockWidget {
+            Layout.alignment: Qt.AlignCenter
+          }
+
+          // Spacer
+          Item {
+            Layout.fillWidth: true
+          }
+
+          // Right side - WLAN Widget
+          WlanWidget {
+            Layout.alignment: Qt.AlignRight
+          }
+        }
 
       } // PanelWindow
     } // Component
