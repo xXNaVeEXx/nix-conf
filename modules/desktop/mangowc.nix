@@ -54,9 +54,16 @@ in
     # Enable MangoWC compositor (already handles portals, polkit, xwayland)
     programs.mango.enable = true;
 
-    # Set keyboard layout environment variables
+    # Set keyboard layout and Wayland environment variables
     environment.sessionVariables = {
       XKB_DEFAULT_LAYOUT = "de";
+      # Force Qt applications to use Wayland
+      QT_QPA_PLATFORM = "wayland";
+      # Additional Wayland variables
+      SDL_VIDEODRIVER = "wayland";
+      _JAVA_AWT_WM_NONREPARENTING = "1";
+      CLUTTER_BACKEND = "wayland";
+      GDK_BACKEND = "wayland";
     };
 
     # Additional useful packages for MangoWC
@@ -100,5 +107,21 @@ in
         {
           source = quickshellConfigDir;
         };
+
+    # Create a GDM session file for MangoWC
+    services.displayManager.sessionPackages = [
+      (pkgs.writeTextFile rec {
+        name = "mangowc-session";
+        destination = "/share/wayland-sessions/mangowc.desktop";
+        text = ''
+          [Desktop Entry]
+          Name=MangoWC
+          Comment=MangoWC Wayland Compositor
+          Exec=mango
+          Type=Application
+        '';
+        passthru.providedSessions = [ "mangowc" ];
+      })
+    ];
   };
 }

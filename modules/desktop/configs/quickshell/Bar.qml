@@ -29,6 +29,8 @@ Scope {
 
           anchors.centerIn: parent
         } // Text
+
+
       } // PanelWindow
     } // Component
   } // Variants
