@@ -14,48 +14,6 @@ let
     sha256 = "0km2dyifda53fwg592z701kf68hwa8fgin1yl2x351vgpmx8g4gn";
   };
 
-  # Basic quickshell configuration
-  quickshellConfig = pkgs.writeText "shell.qml" ''
-    import Quickshell
-    import Quickshell.Wayland
-
-    ShellRoot {
-      WlSessionLock {}
-
-      Variants {
-        model: Quickshell.screens
-
-        PanelWindow {
-          property var modelData
-          screen: modelData
-
-          anchors {
-            top: true
-            left: true
-            right: true
-          }
-
-          height: 30
-
-          color: "#1e1e2e"
-
-          Text {
-            anchors.centerIn: parent
-            text: "MangoWC - " + new Date().toLocaleString(Qt.locale(), "ddd MMM d HH:mm")
-            color: "#cdd6f4"
-
-            Timer {
-              interval: 1000
-              running: true
-              repeat: true
-              onTriggered: parent.text = "MangoWC - " + new Date().toLocaleString(Qt.locale(), "ddd MMM d HH:mm")
-            }
-          }
-        }
-      }
-    }
-  '';
-
   # Determine which bar to use
   barCommand = if config.mySystem.desktop.bar == "quickshell" then "quickshell" else "waybar";
 
@@ -82,6 +40,9 @@ let
     exec-once=swaybg -i ${wallpaper} -m fill
     exec-once=mako
   '';
+
+  # Quickshell configuration directory
+  quickshellConfigDir = ./configs/quickshell;
 in
 
 {
@@ -99,39 +60,45 @@ in
     };
 
     # Additional useful packages for MangoWC
-    environment.systemPackages = with pkgs; [
-      # Terminal (REQUIRED - keybindings depend on this!)
-      wezterm
+    environment.systemPackages =
+      with pkgs;
+      [
+        # Terminal (REQUIRED - keybindings depend on this!)
+        wezterm
 
-      # Wayland utilities
-      wayland-utils
-      wl-clipboard
+        # Wayland utilities
+        wayland-utils
+        wl-clipboard
 
-      # Application launcher (has native Wayland support)
-      rofi
+        # Application launcher (has native Wayland support)
+        rofi
 
-      # Notification daemon
-      mako
+        # Notification daemon
+        mako
 
-      # Screenshot tools
-      grim
-      slurp
+        # Screenshot tools
+        grim
+        slurp
 
-      # Wallpaper
-      swaybg
-    ] ++ (
-      # Conditionally add bar based on user preference
-      if config.mySystem.desktop.bar == "quickshell"
-      then [ quickshell.packages.${pkgs.system}.default ]
-      else [ waybar ]
-    );
+        # Wallpaper
+        swaybg
+      ]
+      ++ (
+        # Conditionally add bar based on user preference
+        if config.mySystem.desktop.bar == "quickshell" then
+          [ quickshell.packages.${pkgs.system}.default ]
+        else
+          [ waybar ]
+      );
 
     # MangoWC configuration with autostart
     environment.etc."mango/config.conf".source = mangoConfig;
 
     # Quickshell configuration (if using quickshell)
-    environment.etc."xdg/quickshell/shell.qml" = lib.mkIf (config.mySystem.desktop.bar == "quickshell") {
-      source = quickshellConfig;
-    };
+    environment.etc."xdg/quickshell" =
+      lib.mkIf (config.mySystem.desktop.bar == "quickshell")
+        {
+          source = quickshellConfigDir;
+        };
   };
 }
