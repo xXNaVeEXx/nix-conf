@@ -101,4 +101,7 @@
     source = "${dotfiles}/tmux/.tmux";
     recursive = true;
   };
+
+  # Create .config/zsh directory for history file
+  home.file.".config/zsh/.keep".text = "";
 }

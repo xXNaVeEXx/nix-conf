@@ -117,6 +117,9 @@ in
     recursive = true;
   };
 
+  # Create .config/zsh directory for history file
+  home.file.".config/zsh/.keep".text = "";
+
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;

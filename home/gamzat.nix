@@ -97,6 +97,9 @@ in
     recursive = true;
   };
 
+  # Create .config/zsh directory for history file
+  home.file.".config/zsh/.keep".text = "";
+
   # Quickshell configuration for MangoWC
   home.file.".config/quickshell" = lib.mkIf osConfig.mySystem.desktop.mangowc {
     source = quickshellConfigDir;
