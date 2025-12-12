@@ -92,7 +92,6 @@ in
     neovim
     ripgrep
 
-    (lib.lowPrio gcc)
     clang
     nodejs
     unzip

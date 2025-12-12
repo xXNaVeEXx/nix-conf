@@ -145,7 +145,6 @@ in
     tmux
     fzf
 
-    gcc
     clang
     nodejs
     unzip
