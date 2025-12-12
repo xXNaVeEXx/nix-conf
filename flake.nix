@@ -116,6 +116,17 @@
             { nixpkgs.config.allowUnfree = true; }
           ];
         };
+
+        # Configuration for gamzat-dev hostname
+        "maga@gmaga-dev" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles; };
+          modules = [
+            ./home/maga-dev.nix
+            { nixpkgs.config.allowUnfree = true; }
+          ];
+        };
+
       };
     };
 }
