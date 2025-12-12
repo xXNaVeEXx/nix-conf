@@ -96,6 +96,26 @@
             { nixpkgs.config.allowUnfree = true; }
           ];
         };
+
+        # Shared configuration for gamzat-dev and other systems
+        "gamzat@shared" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles; };
+          modules = [
+            ./home/gamzat-shared.nix
+            { nixpkgs.config.allowUnfree = true; }
+          ];
+        };
+
+        # Configuration for gamzat-dev hostname
+        "gamzat@gamzat-dev" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles; };
+          modules = [
+            ./home/gamzat-shared.nix
+            { nixpkgs.config.allowUnfree = true; }
+          ];
+        };
       };
     };
 }
