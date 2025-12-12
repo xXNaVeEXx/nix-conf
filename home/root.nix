@@ -19,4 +19,25 @@
 
   # Create .config/zsh directory for history file
   home.file.".config/zsh/.keep".text = "";
+
+  # zsh is managed manually via dotfiles
+  home.packages = with pkgs; [
+    zsh
+    bat
+    eza
+    tmux
+    lazygit
+    nerd-fonts.gohufont
+  ];
+
+  # Tmux configuration from dotfiles
+  home.file.".tmux.conf" = {
+    source = "${dotfiles}/tmux/.tmux.conf";
+  };
+
+  home.file.".tmux" = {
+    source = "${dotfiles}/tmux/.tmux";
+    recursive = true;
+  };
+
 }
