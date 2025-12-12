@@ -89,7 +89,6 @@ in
     nerd-fonts.gohufont
 
     git
-    neovim
     ripgrep
 
     clang
