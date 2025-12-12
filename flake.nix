@@ -127,6 +127,16 @@
           ];
         };
 
+        # Configuration for marv-dev hostname
+        "marv@marv-dev" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles; };
+          modules = [
+            ./home/marv-dev.nix
+            { nixpkgs.config.allowUnfree = true; }
+          ];
+        };
+
       };
     };
 }

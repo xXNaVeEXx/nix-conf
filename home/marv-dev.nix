@@ -29,8 +29,8 @@ let
 in
 
 {
-  home.username = "maga";
-  home.homeDirectory = "/home/maga";
+  home.username = "marv";
+  home.homeDirectory = "/home/marv";
   home.stateVersion = "25.11";
 
   # Let Home Manager install and manage itself
@@ -45,8 +45,8 @@ in
     enable = true;
     settings = {
       user = {
-        name = "Magram";
-        email = "magramzijaev@gmail.com";
+        name = "Marv";
+        email = "Marv@gmail.com";
       };
       init.defaultBranch = "main";
       pull.rebase = true;
