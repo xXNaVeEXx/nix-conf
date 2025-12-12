@@ -9,23 +9,37 @@ NC='\033[0m' # No Color
 
 # System Detection
 detect_system() {
+    # Detect the actual user (handle sudo case)
+    if [[ -n "$SUDO_USER" ]]; then
+        ACTUAL_USER="$SUDO_USER"
+    else
+        ACTUAL_USER="$USER"
+    fi
+
+    # Detect hostname
+    ACTUAL_HOSTNAME="$(hostname)"
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
         SYSTEM_TYPE="darwin"
         REBUILD_CMD="darwin-rebuild"
-        HOSTNAME="macbook"
+        # For darwin, use the hostname directly from darwinConfigurations in flake.nix
+        HOSTNAME="$ACTUAL_HOSTNAME"
     elif [[ -f /etc/os-release ]] && grep -q "ID=cachyos" /etc/os-release; then
         SYSTEM_TYPE="cachyos"
         REBUILD_CMD="home-manager"
-        HOSTNAME="gamzat@cachyos"
+        # For cachyos, use user@hostname format for home-manager
+        HOSTNAME="${ACTUAL_USER}@${ACTUAL_HOSTNAME}"
     elif [[ -f /etc/NIXOS ]]; then
         SYSTEM_TYPE="nixos"
         REBUILD_CMD="nixos-rebuild"
-        HOSTNAME="nixos"
+        # For NixOS, use the hostname from nixosConfigurations in flake.nix
+        HOSTNAME="$ACTUAL_HOSTNAME"
     else
         # Default to home-manager for other Linux distros
         SYSTEM_TYPE="linux"
         REBUILD_CMD="home-manager"
-        HOSTNAME="gamzat@cachyos"
+        # For standalone home-manager, use user@hostname format
+        HOSTNAME="${ACTUAL_USER}@${ACTUAL_HOSTNAME}"
     fi
 }
 
