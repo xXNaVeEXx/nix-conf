@@ -14,17 +14,18 @@ Item {
     Text {
       id: wifiIcon
       text: Wlan.connectionIcon
-      font.family: "Symbols Nerd Font"
+      font.family: "GohuFont Nerd Font"
       font.pixelSize: 16
-      color: Wlan.isConnected ? "#a6e3a1" : "#f38ba8"
+      color: Wlan.isConnected ? Colors.success : Colors.error
     }
 
     // Current connection or status
     Text {
       id: connectionText
       text: Wlan.currentConnection
+      font.family: "GohuFont Nerd Font"
       font.pixelSize: 12
-      color: "#cdd6f4"
+      color: Colors.text
     }
   }
 
@@ -48,8 +49,8 @@ Item {
   Rectangle {
     id: networksPopup
     visible: false
-    color: "#1e1e2e"
-    border.color: "#45475a"
+    color: Qt.rgba(Colors.bg.r, Colors.bg.g, Colors.bg.b, 0.95)
+    border.color: Colors.neonBlue
     border.width: 1
     radius: 5
     width: 250
@@ -69,9 +70,10 @@ Item {
 
       Text {
         text: "Available Networks"
+        font.family: "GohuFont Nerd Font"
         font.bold: true
         font.pixelSize: 12
-        color: "#cdd6f4"
+        color: Colors.neonBlue
       }
 
       Repeater {
@@ -80,7 +82,7 @@ Item {
         delegate: Rectangle {
           width: networksPopup.width - 20
           height: networkRow.height + 8
-          color: modelData.active ? "#313244" : "transparent"
+          color: modelData.active ? Colors.bgHighlight : "transparent"
           radius: 3
 
           Row {
@@ -91,13 +93,15 @@ Item {
 
             Text {
               text: modelData.active ? "●" : "○"
-              color: modelData.active ? "#a6e3a1" : "#6c7086"
+              font.family: "GohuFont Nerd Font"
+              color: modelData.active ? Colors.success : Colors.inactive
               font.pixelSize: 10
             }
 
             Text {
               text: modelData.ssid
-              color: "#cdd6f4"
+              font.family: "GohuFont Nerd Font"
+              color: Colors.text
               font.pixelSize: 11
               width: 140
               elide: Text.ElideRight
@@ -105,7 +109,8 @@ Item {
 
             Text {
               text: modelData.signal + "%"
-              color: "#94e2d5"
+              font.family: "GohuFont Nerd Font"
+              color: Colors.neonCyan
               font.pixelSize: 10
             }
 

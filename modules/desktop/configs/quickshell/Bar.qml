@@ -1,57 +1,177 @@
 import Quickshell
-import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 
 Scope {
   id: root
 
-  // add a property in the root
-  property string time
-
   Variants {
     model: Quickshell.screens
 
     delegate: Component {
-      PanelWindow {
+      Scope {
         required property var modelData
-        screen: modelData
 
-        anchors {
-          top: true
-          left: true
-          right: true
+        // Left Island - Tag Name + Window Title
+        PanelWindow {
+          id: leftIsland
+          screen: modelData
+
+          anchors {
+            top: true
+            left: true
+          }
+
+          margins {
+            top: 5
+            left: 10
+          }
+
+          implicitWidth: leftContent.width + 24
+          implicitHeight: 30
+          color: "transparent"
+
+          Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(Colors.bg.r, Colors.bg.g, Colors.bg.b, 0.6)
+            border.color: Colors.border
+            border.width: 1
+            radius: 6
+            opacity: 0.95
+
+            RowLayout {
+              id: leftContent
+              anchors.centerIn: parent
+              spacing: 15
+
+              TagNameWidget {}
+
+              Rectangle {
+                width: 1
+                height: 18
+                color: Colors.border
+              }
+
+              WindowTitleWidget {}
+            }
+          }
         }
 
-        implicitHeight: 30
+        // Center Island - Clock
+        PanelWindow {
+          id: centerIsland
+          screen: modelData
 
-        RowLayout {
-          anchors.fill: parent
-          anchors.margins: 5
-
-          // Left side spacer
-          Item {
-            Layout.fillWidth: true
+          anchors {
+            top: true
+            horizontally: "center"
           }
 
-          // Center - Clock Widget
-          ClockWidget {
-            Layout.alignment: Qt.AlignCenter
+          margins {
+            top: 5
           }
 
-          // Spacer
-          Item {
-            Layout.fillWidth: true
-          }
+          implicitWidth: centerContent.width + 24
+          implicitHeight: 30
+          color: "transparent"
 
-          // Right side - WLAN Widget
-          WlanWidget {
-            Layout.alignment: Qt.AlignRight
+          Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(Colors.bg.r, Colors.bg.g, Colors.bg.b, 0.6)
+            border.color: Colors.neonBlue
+            border.width: 1
+            radius: 6
+            opacity: 0.95
+
+            RowLayout {
+              id: centerContent
+              anchors.centerIn: parent
+              spacing: 8
+
+              Text {
+                text: ""
+                font.family: "GohuFont Nerd Font"
+                font.pixelSize: 14
+                color: Colors.neonBlue
+              }
+
+              ClockWidget {}
+            }
           }
         }
 
-      } // PanelWindow
-    } // Component
-  } // Variants
+        // Right Island - System Info + WLAN
+        PanelWindow {
+          id: rightIsland
+          screen: modelData
 
-} // Scope
+          anchors {
+            top: true
+            right: true
+          }
+
+          margins {
+            top: 5
+            right: 10
+          }
+
+          implicitWidth: rightContent.width + 24
+          implicitHeight: 30
+          color: "transparent"
+
+          Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(Colors.bg.r, Colors.bg.g, Colors.bg.b, 0.6)
+            border.color: Colors.border
+            border.width: 1
+            radius: 6
+            opacity: 0.95
+
+            RowLayout {
+              id: rightContent
+              anchors.centerIn: parent
+              spacing: 15
+
+              SystemInfoWidget {}
+
+              Rectangle {
+                visible: SystemInfo.visible
+                width: 1
+                height: 18
+                color: Colors.border
+              }
+
+              WlanWidget {}
+
+              // System info toggle button
+              Rectangle {
+                width: 24
+                height: 24
+                radius: 4
+                color: mouseArea.containsMouse ? Colors.bgHighlight : "transparent"
+                border.color: SystemInfo.visible ? Colors.neonPurple : Colors.border
+                border.width: 1
+
+                Text {
+                  anchors.centerIn: parent
+                  text: ""
+                  font.family: "GohuFont Nerd Font"
+                  font.pixelSize: 12
+                  color: SystemInfo.visible ? Colors.neonPurple : Colors.textDim
+                }
+
+                MouseArea {
+                  id: mouseArea
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: SystemInfo.toggle()
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

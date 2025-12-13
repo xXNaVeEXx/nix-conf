@@ -1,0 +1,68 @@
+# Swaylock Configuration
+# Cyberpunk-themed screen locker
+
+# Disable daemonize
+daemonize
+
+# Show failed attempts
+show-failed-attempts
+
+# Colors - Cyberpunk theme
+color=0a0e27        # Background color (dark blue)
+
+# Ring colors
+ring-color=2d3a6e           # Default ring
+key-hl-color=00d9ff         # Key highlight (neon blue)
+bs-hl-color=ff0055          # Backspace highlight (neon red)
+
+# Inside colors
+inside-color=151b3d         # Inside default
+inside-clear-color=151b3d   # Inside when cleared
+inside-ver-color=151b3d     # Inside when verifying
+inside-wrong-color=1e2749   # Inside when wrong
+
+# Line colors
+line-color=00d9ff           # Line (neon blue)
+line-clear-color=00ffcc     # Line when cleared (cyan)
+line-ver-color=a78bfa       # Line when verifying (purple)
+line-wrong-color=ff0055     # Line when wrong (red)
+
+# Ring verification colors
+ring-clear-color=00ffcc     # Ring when cleared (cyan)
+ring-ver-color=a78bfa       # Ring when verifying (purple)
+ring-wrong-color=ff0055     # Ring when wrong (red)
+
+# Separator color
+separator-color=00000000    # Transparent
+
+# Text colors
+text-color=e0e7ff           # Default text
+text-clear-color=e0e7ff     # Text when cleared
+text-ver-color=e0e7ff       # Text when verifying
+text-wrong-color=ffffff     # Text when wrong (bright)
+
+# Font
+font=GohuFont Nerd Font
+
+# Indicator
+indicator
+indicator-radius=100
+indicator-thickness=10
+
+# Effects
+fade-in=0.2
+grace=2
+grace-no-mouse
+grace-no-touch
+
+# Blur or image background
+effect-blur=7x5
+effect-vignette=0.5:0.5
+
+# Clock
+clock
+timestr=%H:%M
+datestr=%a, %d %b
+
+# Screenshots disabled for security
+screenshots

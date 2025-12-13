@@ -1,0 +1,63 @@
+# Mako Notification Daemon Configuration
+# Cyberpunk-themed notifications matching quickshell aesthetic
+
+# Position - Top right (mobile-like)
+anchor=top-right
+margin=10,15,0,0
+
+# Dimensions
+width=380
+height=120
+padding=15
+border-size=2
+border-radius=8
+
+# Maximum notifications visible
+max-visible=10
+
+# Timeout (5 seconds)
+default-timeout=5000
+
+# Font - GohuFont Nerd Font
+font=GohuFont Nerd Font 11
+
+# Colors - Cyberpunk theme matching quickshell
+background-color=#0a0e27dd
+text-color=#e0e7ff
+border-color=#00d9ff
+progress-color=#00ffcc
+
+# Urgency levels
+[urgency=low]
+border-color=#8b95c9
+default-timeout=3000
+
+[urgency=normal]
+border-color=#00d9ff
+default-timeout=5000
+
+[urgency=critical]
+border-color=#ff0055
+text-color=#ffffff
+default-timeout=0
+
+# Icons
+icon-path=/run/current-system/sw/share/icons/hicolor
+max-icon-size=48
+
+# Grouping
+group-by=app-name
+
+# Format
+format=<b>%s</b>\n%b
+markup=1
+
+# Actions
+actions=1
+
+# History
+history=1
+max-history=100
+
+# Layer
+layer=overlay
