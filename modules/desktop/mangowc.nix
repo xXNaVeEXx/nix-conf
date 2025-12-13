@@ -54,6 +54,46 @@ in
     # Enable MangoWC compositor (already handles portals, polkit, xwayland)
     programs.mango.enable = true;
 
+    # Enable GDM as display manager
+    services.xserver.enable = true;
+    services.displayManager.gdm.enable = true;
+    services.displayManager.gdm.wayland = true;
+
+    # Configure XDG Desktop Portal for screen sharing (required for RustDesk)
+    xdg.portal = {
+      enable = true;
+      wlr.enable = true;
+      extraPortals = with pkgs; [
+        xdg-desktop-portal-wlr
+        xdg-desktop-portal-gtk
+        xdg-desktop-portal-gnome  # Provides RemoteDesktop interface for RustDesk
+      ];
+      config = {
+        common = lib.mkForce {
+          default = [ "gnome" "wlr" "gtk" ];
+        };
+        mango = lib.mkForce {
+          default = [ "gnome" "wlr" "gtk" ];
+          "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
+          "org.freedesktop.impl.portal.Screenshot" = [ "wlr" ];
+          "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
+        };
+      };
+    };
+
+    # Autostart xdg-desktop-portal-gnome for RemoteDesktop support
+    systemd.user.services.xdg-desktop-portal-gnome = lib.mkIf config.mySystem.desktop.mangowc {
+      description = "GNOME Desktop Portal for RemoteDesktop";
+      wantedBy = [ "graphical-session.target" ];
+      partOf = [ "graphical-session.target" ];
+      serviceConfig = {
+        Type = "dbus";
+        BusName = "org.freedesktop.impl.portal.desktop.gnome";
+        ExecStart = "${pkgs.xdg-desktop-portal-gnome}/libexec/xdg-desktop-portal-gnome";
+        Restart = "on-failure";
+      };
+    };
+
     # Set keyboard layout and Wayland environment variables
     environment.sessionVariables = {
       XKB_DEFAULT_LAYOUT = "de";
@@ -108,20 +148,44 @@ in
           source = quickshellConfigDir;
         };
 
-    # Create a GDM session file for MangoWC
+    # Create GDM session file for Mango
     services.displayManager.sessionPackages = [
       (pkgs.writeTextFile rec {
-        name = "mangowc-session";
-        destination = "/share/wayland-sessions/mangowc.desktop";
+        name = "mango-session";
+        destination = "/share/wayland-sessions/mango.desktop";
         text = ''
           [Desktop Entry]
-          Name=MangoWC
-          Comment=MangoWC Wayland Compositor
+          Name=Mango
+          Comment=Mango Wayland Compositor
           Exec=mango
           Type=Application
+          DesktopNames=mango
         '';
-        passthru.providedSessions = [ "mangowc" ];
+        passthru.providedSessions = [ "mango" ];
       })
     ];
+
+    # Wayvnc configuration for remote desktop (RustDesk alternative)
+    environment.etc."xdg/wayvnc/config".text = ''
+      address=0.0.0.0
+      port=5900
+      enable_auth=true
+      username=remote
+      password=CHANGE_THIS_PASSWORD
+    '';
+
+    # Systemd user service to autostart wayvnc
+    systemd.user.services.wayvnc = lib.mkIf config.mySystem.desktop.mangowc {
+      description = "Wayvnc VNC Server";
+      wantedBy = [ "graphical-session.target" ];
+      partOf = [ "graphical-session.target" ];
+      environment = {
+        WAYLAND_DISPLAY = "wayland-0";
+      };
+      serviceConfig = {
+        ExecStart = "${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config";
+        Restart = "on-failure";
+      };
+    };
   };
 }
