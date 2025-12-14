@@ -52,7 +52,8 @@ let
     #!/usr/bin/env bash
     selected=$(cliphist list | rofi -dmenu -p "Clipboard")
     if [ -n "$selected" ]; then
-      cliphist decode <<< "$selected" | wtype -
+      cliphist decode <<< "$selected" | wl-copy
+      wtype -M ctrl -M shift v -m shift -m ctrl
     fi
   '';
 
