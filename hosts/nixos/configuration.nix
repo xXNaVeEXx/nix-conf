@@ -168,6 +168,8 @@ in
     unzip
     cargo
     rustc
+    rustup
+    dioxus-cli
     # LSP Server direkt installieren
     lua-language-server
     nil # Nix LSP
