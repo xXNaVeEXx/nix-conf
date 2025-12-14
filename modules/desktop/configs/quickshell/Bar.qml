@@ -16,7 +16,7 @@ Scope {
         PanelWindow {
           id: leftIsland
           screen: modelData
-          exclusiveZone: 35
+          exclusiveZone: 40
 
           anchors {
             top: true
@@ -70,7 +70,7 @@ Scope {
         PanelWindow {
           id: centerIsland
           screen: modelData
-          exclusiveZone: 35
+          exclusiveZone: 40
 
           anchors {
             top: true
@@ -115,7 +115,7 @@ Scope {
         PanelWindow {
           id: rightIsland
           screen: modelData
-          exclusiveZone: 35
+          exclusiveZone: 40
 
           anchors {
             top: true

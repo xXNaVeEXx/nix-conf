@@ -145,7 +145,9 @@ let
     gappiv=10
     gappoh=10
     gappov=40
-    border_width 0
+    borderpx=0
+    focuscolor=0x00000000
+    bordercolor=0x00000000
     focus_follows_mouse yes
     master_ratio 0.6
     master_count 1
