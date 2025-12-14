@@ -57,7 +57,6 @@ actions=1
 
 # History
 history=1
-max-history=100
 
 # Layer
 layer=overlay
