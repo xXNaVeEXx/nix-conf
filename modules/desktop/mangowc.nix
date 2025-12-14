@@ -47,6 +47,27 @@ let
     echo "toggle-keybindings-cheatsheet" > /tmp/quickshell-command
   '';
 
+  # Clipboard history script
+  cliphistScript = pkgs.writeShellScriptBin "cliphist-rofi" ''
+    #!/usr/bin/env bash
+    selected=$(cliphist list | rofi -dmenu -p "Clipboard")
+    if [ -n "$selected" ]; then
+      cliphist decode <<< "$selected" | wtype -
+    fi
+  '';
+
+  # Copy script (simulates Ctrl+C)
+  copyScript = pkgs.writeShellScriptBin "copy-selection" ''
+    #!/usr/bin/env bash
+    wtype -M ctrl c -m ctrl
+  '';
+
+  # Paste script (simulates Ctrl+V)
+  pasteScript = pkgs.writeShellScriptBin "paste-clipboard" ''
+    #!/usr/bin/env bash
+    wtype -M ctrl v -m ctrl
+  '';
+
   # Wallpaper switcher script
   wallpaperSwitcherScript = pkgs.writeShellScriptBin "quickshell-switch-wallpaper" ''
     #!/usr/bin/env bash
@@ -219,7 +240,9 @@ let
     bind=ALT,R,reload_config
     bind=code:133,M,quit
     bind=code:133,L,spawn,swaylock
-    bind=ALT+SHIFT,V,spawn,cliphist list | rofi -dmenu -p "Clipboard" | cliphist decode | wl-copy
+    bind=ALT,C,spawn,${copyScript}/bin/copy-selection
+    bind=ALT,V,spawn,${pasteScript}/bin/paste-clipboard
+    bind=ALT+SHIFT,V,spawn,${cliphistScript}/bin/cliphist-rofi
     bind=ALT+SHIFT,T,spawn,${themeSwitcherScript}/bin/quickshell-theme-toggle
     bind=ALT,B,spawn,${keybindingsCheatsheetScript}/bin/quickshell-keybindings-toggle
     bind=,XF86AudioRaiseVolume,spawn,wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
@@ -416,6 +439,7 @@ in
         # Clipboard manager
         cliphist # Clipboard history manager
         wl-clipboard # Wayland clipboard utilities
+        wtype # Wayland typing tool for pasting
 
         # Authentication
         polkit_gnome # Polkit authentication agent
