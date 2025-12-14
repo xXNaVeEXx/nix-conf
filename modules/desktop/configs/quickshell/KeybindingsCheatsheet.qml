@@ -55,10 +55,10 @@ Item {
     "System": [
       { key: "ALT + I", desc: "Toggle CPU/Memory widget" },
       { key: "ALT + R", desc: "Reload MangoWC config" },
-      { key: "ALT + T", desc: "Theme switcher" },
-      { key: "SUPER + M", desc: "Quit MangoWC" },
-      { key: "SUPER + L", desc: "Lock screen" },
-      { key: "SUPER + W", desc: "Keybindings cheatsheet (this)" }
+      { key: "ALT + Shift + T", desc: "Theme switcher" },
+      { key: "ALT + B", desc: "Keybindings cheatsheet (this)" },
+      { key: "SUPER + M", desc: "Quit MangoWC (local only)" },
+      { key: "SUPER + L", desc: "Lock screen (local only)" }
     ],
     "Clipboard & Screenshots": [
       { key: "ALT + Shift + V", desc: "Clipboard history" },
@@ -92,6 +92,7 @@ Item {
           id: cheatsheetWindow
           screen: modelData
           visible: root.isVisible
+          focusable: true
 
           anchors {
             top: true
@@ -116,6 +117,7 @@ Item {
           border.color: Colors.neonBlue
           border.width: 2
           radius: 12
+          focus: true
 
           ColumnLayout {
             anchors.fill: parent
@@ -294,25 +296,33 @@ Item {
               }
             }
           }
-        }
 
-        // Keyboard handling
-        Keys.onPressed: (event) => {
-          if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
-            flickable.contentY = Math.min(flickable.contentY + 50, flickable.contentHeight - flickable.height)
-            event.accepted = true
-          } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
-            flickable.contentY = Math.max(flickable.contentY - 50, 0)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
-            root.isVisible = false
-            event.accepted = true
+          // Keyboard handling
+          Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
+              flickable.contentY = Math.min(flickable.contentY + 50, flickable.contentHeight - flickable.height)
+              event.accepted = true
+            } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
+              flickable.contentY = Math.max(flickable.contentY - 50, 0)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
+              root.isVisible = false
+              event.accepted = true
+            }
+          }
+
+          // Grab focus when container becomes visible
+          Component.onCompleted: {
+            if (root.isVisible) {
+              forceActiveFocus()
+            }
           }
         }
 
-        Component.onCompleted: {
-          if (root.isVisible) {
-            forceActiveFocus()
+        // Grab focus on visibility change
+        onVisibleChanged: {
+          if (visible) {
+            container.forceActiveFocus()
           }
         }
       }

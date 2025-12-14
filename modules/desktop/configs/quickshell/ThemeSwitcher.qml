@@ -28,6 +28,13 @@ Item {
         color: "transparent"
         mask: Region { item: container }
 
+        // Grab focus when window becomes visible
+        onVisibleChanged: {
+          if (visible) {
+            container.forceActiveFocus()
+          }
+        }
+
         Rectangle {
           id: container
           anchors.fill: parent
@@ -35,6 +42,7 @@ Item {
           border.color: Colors.neonBlue
           border.width: 2
           radius: 12
+          focus: true
 
           ColumnLayout {
             anchors.fill: parent
@@ -217,25 +225,25 @@ Item {
               property bool isSelected: root.themeKeys[root.selectedIndex] !== Themes.currentTheme
             }
           }
-        }
 
-        // Keyboard handling - Horizontal vim navigation
-        Keys.onPressed: (event) => {
-          if (event.key === Qt.Key_H || event.key === Qt.Key_Left) {
-            // Move left
-            root.selectedIndex = Math.max(root.selectedIndex - 1, 0)
-            event.accepted = true
-          } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right) {
-            // Move right
-            root.selectedIndex = Math.min(root.selectedIndex + 1, root.themeKeys.length - 1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            Themes.switchTheme(root.themeKeys[root.selectedIndex])
-            root.visible = false
-            event.accepted = true
-          } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
-            root.visible = false
-            event.accepted = true
+          // Keyboard handling - Horizontal vim navigation
+          Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_H || event.key === Qt.Key_Left) {
+              // Move left
+              root.selectedIndex = Math.max(root.selectedIndex - 1, 0)
+              event.accepted = true
+            } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right) {
+              // Move right
+              root.selectedIndex = Math.min(root.selectedIndex + 1, root.themeKeys.length - 1)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+              Themes.switchTheme(root.themeKeys[root.selectedIndex])
+              root.visible = false
+              event.accepted = true
+            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
+              root.visible = false
+              event.accepted = true
+            }
           }
         }
       }

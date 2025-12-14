@@ -182,11 +182,11 @@ let
     bind=ALT,Print,spawn,grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
     bind=ALT+SHIFT,Print,spawn,grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
     bind=ALT,R,reload_config
-    bind=SUPER,M,quit
-    bind=SUPER,L,spawn,swaylock
+    bind=code:133,M,quit
+    bind=code:133,L,spawn,swaylock
     bind=ALT+SHIFT,V,spawn,cliphist list | rofi -dmenu -p "Clipboard" | cliphist decode | wl-copy
-    bind=ALT,T,spawn,${themeSwitcherScript}/bin/quickshell-theme-toggle
-    bind=SUPER,W,spawn,${keybindingsCheatsheetScript}/bin/quickshell-keybindings-toggle
+    bind=ALT+SHIFT,T,spawn,${themeSwitcherScript}/bin/quickshell-theme-toggle
+    bind=ALT,B,spawn,${keybindingsCheatsheetScript}/bin/quickshell-keybindings-toggle
     bind=,XF86AudioRaiseVolume,spawn,wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
     bind=,XF86AudioLowerVolume,spawn,wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
     bind=,XF86AudioMute,spawn,wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
@@ -207,6 +207,8 @@ let
     windowrule nofocus,class:^(notification|notify)$
     windowrule float,title:^(Open File|Save File|Select File)$
     windowrule float,title:^(File Upload|Picture-in-Picture)$
+    exec-once=dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+    exec-once=systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
     exec-once=${barCommand}
     exec-once=swaybg -i ${wallpaper} -m fill
     exec-once=mako --config /etc/xdg/mako/config
@@ -218,6 +220,7 @@ let
       timeout 540 'brightnessctl set 30%' resume 'brightnessctl set 100%' \
       timeout 600 'swaylock -f' \
       before-sleep 'swaylock -f'
+    exec-once=systemctl --user start wayvnc.service
   '';
 
 
@@ -430,21 +433,14 @@ in
       password=CHANGE_THIS_PASSWORD
     '';
 
-    # Systemd user service to autostart wayvnc
+    # Systemd user service for wayvnc (started by exec-once in MangoWC config)
     systemd.user.services.wayvnc = lib.mkIf config.mySystem.desktop.mangowc {
       description = "Wayvnc VNC Server";
-      wantedBy = [ "graphical-session.target" ];
-      partOf = [ "graphical-session.target" ];
-      after = [ "graphical-session.target" ];
       serviceConfig = {
         Type = "simple";
-        ExecStartPre = "${pkgs.bash}/bin/bash -c '${pkgs.coreutils}/bin/sleep 8'";
         ExecStart = "${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config 0.0.0.0 5900";
-        Restart = "on-failure";
+        Restart = "always";
         RestartSec = "5";
-        Environment = [
-          "WAYLAND_DISPLAY=wayland-0"
-        ];
       };
     };
   };
