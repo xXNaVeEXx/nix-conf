@@ -119,7 +119,8 @@ let
   '';
 
   # Determine which bar to use
-  barCommand = if config.mySystem.desktop.bar == "quickshell" then "''${quickshellLauncher}" else "waybar";
+  barCommand =
+    if config.mySystem.desktop.bar == "quickshell" then "''${quickshellLauncher}" else "waybar";
 
   mangoConfig = pkgs.writeText "mango-config" ''
     output HEADLESS-1 {
@@ -257,17 +258,18 @@ let
     exec-once=systemctl --user start wayvnc.service
   '';
 
-
   # Quickshell configuration directory
   quickshellConfigDir = ./configs/quickshell;
 
   # Wallpaper mapping file for runtime theme switching
-  wallpaperMapFile = pkgs.writeText "wallpaper-map.json" (builtins.toJSON {
-    cyberpunk = "${wallpapers.cyberpunk}";
-    sunset = "${wallpapers.sunset}";
-    tokyo = "${wallpapers.tokyo}";
-    future = "${wallpapers.future}";
-  });
+  wallpaperMapFile = pkgs.writeText "wallpaper-map.json" (
+    builtins.toJSON {
+      cyberpunk = "${wallpapers.cyberpunk}";
+      sunset = "${wallpapers.sunset}";
+      tokyo = "${wallpapers.tokyo}";
+      future = "${wallpapers.future}";
+    }
+  );
 in
 
 {
@@ -315,17 +317,24 @@ in
       extraPortals = with pkgs; [
         xdg-desktop-portal-wlr
         xdg-desktop-portal-gtk
-        xdg-desktop-portal-gnome  # Provides RemoteDesktop interface for RustDesk
+        xdg-desktop-portal-gnome # Provides RemoteDesktop interface for RustDesk
       ];
       config = {
         common = lib.mkForce {
-          default = [ "gnome" "wlr" "gtk" ];
+          default = [
+            "gnome"
+            "wlr"
+            "gtk"
+          ];
         };
         mango = lib.mkForce {
-          default = [ "gnome" "wlr" "gtk" ];
+          default = [
+            "gnome"
+            "wlr"
+            "gtk"
+          ];
           "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
           "org.freedesktop.impl.portal.Screenshot" = [ "wlr" ];
-          "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
         };
       };
     };
@@ -387,7 +396,7 @@ in
 
         # Notification daemon
         mako
-        libnotify     # notify-send command for sending notifications
+        libnotify # notify-send command for sending notifications
 
         # Screenshot tools
         grim
@@ -397,25 +406,25 @@ in
         swaybg
 
         # Media control
-        playerctl     # Media player control
+        playerctl # Media player control
         brightnessctl # Screen brightness control
-        swaylock      # Screen locker
+        swaylock # Screen locker
 
         # Cursor theme - Cyberpunk dark
-        bibata-cursors  # Modern dark cursor theme
+        bibata-cursors # Modern dark cursor theme
 
         # Clipboard manager
-        cliphist      # Clipboard history manager
-        wl-clipboard  # Wayland clipboard utilities
+        cliphist # Clipboard history manager
+        wl-clipboard # Wayland clipboard utilities
 
         # Authentication
-        polkit_gnome  # Polkit authentication agent
+        polkit_gnome # Polkit authentication agent
 
         # Screen temperature
-        wlsunset      # Time-based screen color temperature
+        wlsunset # Time-based screen color temperature
 
         # Idle management
-        swayidle      # Idle daemon for auto-lock
+        swayidle # Idle daemon for auto-lock
 
         # File watching (for theme switcher)
         inotify-tools # For watching file changes
@@ -441,11 +450,9 @@ in
     environment.etc."mango/config.conf".source = mangoConfig;
 
     # Quickshell configuration (if using quickshell)
-    environment.etc."xdg/quickshell" =
-      lib.mkIf (config.mySystem.desktop.bar == "quickshell")
-        {
-          source = quickshellConfigDir;
-        };
+    environment.etc."xdg/quickshell" = lib.mkIf (config.mySystem.desktop.bar == "quickshell") {
+      source = quickshellConfigDir;
+    };
 
     # Wallpaper mapping for theme switcher
     environment.etc."xdg/quickshell-wallpapers.json".source = wallpaperMapFile;
