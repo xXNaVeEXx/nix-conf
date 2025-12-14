@@ -141,8 +141,10 @@ let
     }
     tags 5
     layout scroller
-    gaps_inner 10
-    gaps_outer 10
+    gappih=10
+    gappiv=10
+    gappoh=10
+    gappov=40
     border_width 0
     focus_follows_mouse yes
     master_ratio 0.6
