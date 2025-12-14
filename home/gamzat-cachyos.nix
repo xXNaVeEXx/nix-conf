@@ -70,12 +70,12 @@ in
 
   programs.fzf = {
     enable = true;
-    enableZshIntegration = false;  # Manual integration in .zshrc
+    enableZshIntegration = false; # Manual integration in .zshrc
   };
 
   programs.zoxide = {
     enable = true;
-    enableZshIntegration = false;  # Manual integration in .zshrc
+    enableZshIntegration = false; # Manual integration in .zshrc
   };
 
   # zsh is managed manually via dotfiles
@@ -110,11 +110,6 @@ in
   # Tmux configuration from dotfiles
   home.file.".tmux.conf" = {
     source = "${dotfiles}/tmux/.tmux.conf";
-  };
-
-  home.file.".tmux" = {
-    source = "${dotfiles}/tmux/.tmux";
-    recursive = true;
   };
 
   # Create .config/zsh directory for history file

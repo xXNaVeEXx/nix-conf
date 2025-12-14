@@ -35,9 +35,4 @@
     source = "${dotfiles}/tmux/.tmux.conf";
   };
 
-  home.file.".tmux" = {
-    source = "${dotfiles}/tmux/.tmux";
-    recursive = true;
-  };
-
 }

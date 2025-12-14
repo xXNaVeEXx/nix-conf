@@ -1,4 +1,11 @@
-{ config, osConfig, pkgs, lib, dotfiles, ... }:
+{
+  config,
+  osConfig,
+  pkgs,
+  lib,
+  dotfiles,
+  ...
+}:
 
 {
   home.stateVersion = "25.11";
@@ -24,7 +31,7 @@
     source = "${dotfiles}/zsh/.p10k.zsh";
   };
 
-   programs.git = {
+  programs.git = {
     enable = true;
     settings = {
       user = {
@@ -59,32 +66,38 @@
 
   programs.fzf = {
     enable = true;
-    enableZshIntegration = false;  # Manual integration in .zshrc
+    enableZshIntegration = false; # Manual integration in .zshrc
   };
 
   programs.zoxide = {
     enable = true;
-    enableZshIntegration = false;  # Manual integration in .zshrc
+    enableZshIntegration = false; # Manual integration in .zshrc
   };
 
-  home.packages = with pkgs; [
-    bat
-    eza
-    zsh
-    go
-    tmux
-    lazygit
-    nerd-fonts.gohufont
-  ] ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
-    bitwarden-desktop
-    bitwarden-cli
-  ] ++ lib.optionals osConfig.mySystem.terminal.wezterm [
-    wezterm
-  ] ++ lib.optionals osConfig.mySystem.streaming.moonlight [
-    moonlight-qt
-  ] ++ lib.optionals osConfig.mySystem.clipboard.copyq [
-    maccy
-  ];
+  home.packages =
+    with pkgs;
+    [
+      bat
+      eza
+      zsh
+      go
+      tmux
+      lazygit
+      nerd-fonts.gohufont
+    ]
+    ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
+      bitwarden-desktop
+      bitwarden-cli
+    ]
+    ++ lib.optionals osConfig.mySystem.terminal.wezterm [
+      wezterm
+    ]
+    ++ lib.optionals osConfig.mySystem.streaming.moonlight [
+      moonlight-qt
+    ]
+    ++ lib.optionals osConfig.mySystem.clipboard.copyq [
+      maccy
+    ];
 
   # Wezterm configuration from dotfiles
   home.file.".config/wezterm" = lib.mkIf osConfig.mySystem.terminal.wezterm {
@@ -95,11 +108,6 @@
   # Tmux configuration from dotfiles
   home.file.".tmux.conf" = {
     source = "${dotfiles}/tmux/.tmux.conf";
-  };
-
-  home.file.".tmux" = {
-    source = "${dotfiles}/tmux/.tmux";
-    recursive = true;
   };
 
   # Create .config/zsh directory for history file
