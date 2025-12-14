@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-Singleton {
+Item {
   id: root
 
   property string currentConnection: "Disconnected"

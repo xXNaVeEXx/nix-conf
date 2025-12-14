@@ -4,37 +4,20 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-Singleton {
+Item {
   id: root
 
   property real cpuUsage: 0.0
   property real memoryUsage: 0.0
   property real memoryTotal: 0.0
   property real memoryUsed: 0.0
-  property bool visible: false
-
-  // Watch toggle file
-  Process {
-    id: toggleWatcher
-    running: true
-    command: ["sh", "-c", "while true; do if [ -f /tmp/quickshell-sysinfo-visible ]; then echo 'true'; else echo 'false'; fi; sleep 0.5; done"]
-
-    stdout: SplitParser {
-      splitMarker: "\n"
-      onRead: data => {
-        var newState = data.trim() === "true"
-        if (root.visible !== newState) {
-          root.visible = newState
-        }
-      }
-    }
-  }
+  property bool isVisible: false
 
   // Monitor system resources
   Process {
     id: sysMonitor
     running: true
-    command: ["sh", "-c", "while true; do top -bn1 | grep 'Cpu(s)' | awk '{print $2}'; free -m | awk 'NR==2{print $3\" \"$2}'; sleep 2; done"]
+    command: ["sh", "-c", "while true; do top -bn1 | grep 'Cpu(s)' | awk '{print $2}'; free -m | awk 'NR==2{print $3\" \"$2}'; sleep 5; done"]
 
     stdout: SplitParser {
       splitMarker: "\n"
@@ -69,6 +52,6 @@ Singleton {
   }
 
   function toggle() {
-    visible = !visible
+    isVisible = !isVisible
   }
 }

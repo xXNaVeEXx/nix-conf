@@ -25,7 +25,7 @@ let
   # RustDesk wrapper to force X11/XWayland mode
   rustdesk-x11 = pkgs.symlinkJoin {
     name = "rustdesk-x11";
-    paths = [ pkgs.rustdesk-flutter ];  # Try Flutter version
+    paths = [ pkgs.rustdesk-flutter ]; # Try Flutter version
     buildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/rustdesk \
@@ -69,7 +69,7 @@ in
 
     desktop = {
       enable = true;
-      gnome = false;  # Only use Mango session
+      gnome = false; # Only use Mango session
       pantheon = false;
       mangowc = true;
       bar = "quickshell"; # Options: "waybar" or "quickshell"
@@ -153,9 +153,9 @@ in
   environment.systemPackages = with pkgs; [
     #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     #  wget
-    wayvnc  # Native Wayland VNC server
+    wayvnc # Native Wayland VNC server
     wl-clipboard
-    wf-recorder  # Screen recording for Wayland
+    wf-recorder # Screen recording for Wayland
 
     git
     neovim
@@ -177,6 +177,7 @@ in
     vscode-langservers-extracted # JSON, HTML, CSS LSPs
     libsForQt5.qt5.qtdeclarative # QML
     claude-code
+    gemini-cli
 
     # bash scripts
     rebuild-script
@@ -195,7 +196,7 @@ in
   # List services that you want to enable:
 
   # Open ports in the firewall.
-  networking.firewall.allowedTCPPorts = [ 5900 ];  # Wayvnc VNC port
+  networking.firewall.allowedTCPPorts = [ 5900 ]; # Wayvnc VNC port
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;

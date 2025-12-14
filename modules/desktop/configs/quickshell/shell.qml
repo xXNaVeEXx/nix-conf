@@ -41,22 +41,12 @@ Scope {
   // Bottom centered dock (Apple-style app launcher)
   Variants {
     model: Quickshell.screens
-    delegate: Component {
-      Dock {
-        required property var modelData
-        modelData: modelData
-      }
-    }
+    delegate: Dock {}
   }
 
   // Tag indicators (bottom right corner dots)
   Variants {
     model: Quickshell.screens
-    delegate: Component {
-      TagIndicators {
-        required property var modelData
-        modelData: modelData
-      }
-    }
+    delegate: TagIndicators {}
   }
 }

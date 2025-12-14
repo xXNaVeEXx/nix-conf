@@ -57,18 +57,19 @@ Scope {
           }
         }
 
-        // Center Island - Clock
+        // Center Island - Clock (centered using calculated left margin)
         PanelWindow {
           id: centerIsland
           screen: modelData
 
           anchors {
             top: true
-            horizontally: "center"
+            left: true
           }
 
           margins {
             top: 5
+            left: (modelData.width - implicitWidth) / 2
           }
 
           implicitWidth: centerContent.width + 24
@@ -89,7 +90,7 @@ Scope {
               spacing: 8
 
               Text {
-                text: ""
+                text: ""
                 font.family: "GohuFont Nerd Font"
                 font.pixelSize: 14
                 color: Colors.neonBlue
@@ -135,7 +136,7 @@ Scope {
               SystemInfoWidget {}
 
               Rectangle {
-                visible: SystemInfo.visible
+                visible: SystemInfo.isVisible
                 width: 1
                 height: 18
                 color: Colors.border
@@ -149,15 +150,15 @@ Scope {
                 height: 24
                 radius: 4
                 color: mouseArea.containsMouse ? Colors.bgHighlight : "transparent"
-                border.color: SystemInfo.visible ? Colors.neonPurple : Colors.border
+                border.color: SystemInfo.isVisible ? Colors.neonPurple : Colors.border
                 border.width: 1
 
                 Text {
                   anchors.centerIn: parent
-                  text: ""
+                  text: ""
                   font.family: "GohuFont Nerd Font"
                   font.pixelSize: 12
-                  color: SystemInfo.visible ? Colors.neonPurple : Colors.textDim
+                  color: SystemInfo.isVisible ? Colors.neonPurple : Colors.textDim
                 }
 
                 MouseArea {

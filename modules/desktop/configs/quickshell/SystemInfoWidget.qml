@@ -3,7 +3,7 @@ import QtQuick.Layouts
 
 Rectangle {
   id: root
-  visible: SystemInfo.visible
+  visible: SystemInfo.isVisible
   implicitWidth: contentRow.width + 20
   implicitHeight: 24
   color: Qt.rgba(Colors.bg.r, Colors.bg.g, Colors.bg.b, Colors.glassAlpha)

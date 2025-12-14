@@ -6,7 +6,7 @@ import Quickshell
 Item {
   id: root
 
-  property bool visible: false
+  property bool isVisible: false
   property int selectedIndex: 0
   property var themeKeys: Object.keys(Themes.themes)
 
@@ -15,17 +15,12 @@ Item {
     model: Quickshell.screens
 
     delegate: Component {
-      PanelWindow {
+      FloatingWindow {
         id: themeSwitcherWindow
         required property var modelData
         screen: modelData
 
-        visible: root.visible
-
-        anchors {
-          vertically: "center"
-          horizontally: "center"
-        }
+        visible: root.isVisible
 
         width: 900
         height: 300
@@ -243,20 +238,13 @@ Item {
             event.accepted = true
           }
         }
-
-        focus: root.visible
-        Component.onCompleted: {
-          if (root.visible) {
-            forceActiveFocus()
-          }
-        }
       }
     }
   }
 
   function toggle() {
-    visible = !visible
-    if (visible) {
+    isVisible = !isVisible
+    if (isVisible) {
       // Reset selection to current theme
       for (var i = 0; i < themeKeys.length; i++) {
         if (themeKeys[i] === Themes.currentTheme) {
@@ -268,10 +256,10 @@ Item {
   }
 
   function show() {
-    visible = true
+    isVisible = true
   }
 
   function hide() {
-    visible = false
+    isVisible = false
   }
 }

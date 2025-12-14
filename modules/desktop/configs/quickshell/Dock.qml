@@ -10,11 +10,12 @@ PanelWindow {
 
   anchors {
     bottom: true
-    horizontally: "center"
+    left: true
   }
 
   margins {
     bottom: 10
+    left: (modelData.width - implicitWidth) / 2
   }
 
   implicitWidth: dockLayout.width + 20
@@ -53,7 +54,7 @@ PanelWindow {
           width: 45
           height: 45
           radius: 10
-          color: Qt.rgba(Colors.bgHighlight.r, Colors.bgHighlight.g, Colors.bgHighlight.h, 0.5)
+          color: Qt.rgba(Colors.bgHighlight.r, Colors.bgHighlight.g, Colors.bgHighlight.b, 0.5)
           border.color: mouseArea.containsMouse ? Colors.neonCyan : "transparent"
           border.width: 2
 

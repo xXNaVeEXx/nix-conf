@@ -1,9 +1,11 @@
 pragma Singleton
 
+import Quickshell
+import Quickshell.Io
 import QtQuick
 
 // Theme manager - Central theme registry and switcher
-Singleton {
+Item {
   id: root
 
   // Current active theme (persisted via file)

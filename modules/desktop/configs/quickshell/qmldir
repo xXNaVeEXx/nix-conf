@@ -1,10 +1,25 @@
 # QuickShell module directory
-# Makes singletons available globally
+# Makes singletons and components available globally
 
-singleton Colors 1.0 ColorsActive.qml
+# Singletons
+singleton Colors 1.0 Colors.qml
 singleton Themes 1.0 Themes.qml
 singleton SystemInfo 1.0 SystemInfo.qml
 singleton TagName 1.0 TagName.qml
 singleton WindowTitle 1.0 WindowTitle.qml
 singleton Wlan 1.0 Wlan.qml
 singleton Time 1.0 Time.qml
+singleton ActiveColors 1.0 ActiveColors.qml
+
+# Components
+Bar 1.0 Bar.qml
+BarIsland 1.0 BarIsland.qml
+ClockWidget 1.0 ClockWidget.qml
+Dock 1.0 Dock.qml
+KeybindingsCheatsheet 1.0 KeybindingsCheatsheet.qml
+SystemInfoWidget 1.0 SystemInfoWidget.qml
+TagIndicators 1.0 TagIndicators.qml
+TagNameWidget 1.0 TagNameWidget.qml
+ThemeSwitcher 1.0 ThemeSwitcher.qml
+WindowTitleWidget 1.0 WindowTitleWidget.qml
+WlanWidget 1.0 WlanWidget.qml

@@ -6,15 +6,8 @@ import QtQuick
 QtObject {
   id: root
 
-  property var theme: Themes.getCurrentTheme()
-
-  // Update when theme changes
-  Connections {
-    target: Themes
-    function onCurrentThemeChanged() {
-      root.theme = Themes.getCurrentTheme()
-    }
-  }
+  // Dynamically get theme - updates when Themes.currentTheme changes
+  readonly property var theme: Themes.themes[Themes.currentTheme] || Themes.themes["cyberpunk"]
 
   // Primary colors
   readonly property color bg: theme.bg

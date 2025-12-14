@@ -1,12 +1,14 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import QtQuick.Controls 2.15
+import QtQuick.Controls 2.15
 
 // Keybindings Cheatsheet Widget - Shows all configured keybindings
 Item {
   id: root
 
-  property bool visible: false
+  property bool isVisible: false
   property int currentPage: 0
   property int totalPages: 3
 
@@ -83,20 +85,26 @@ Item {
     model: Quickshell.screens
 
     delegate: Component {
-      PanelWindow {
-        id: cheatsheetWindow
+      Scope {
         required property var modelData
-        screen: modelData
 
-        visible: root.visible
+        PanelWindow {
+          id: cheatsheetWindow
+          screen: modelData
+          visible: root.isVisible
 
-        anchors {
-          vertically: "center"
-          horizontally: "center"
-        }
+          anchors {
+            top: true
+            left: true
+          }
 
-        width: 1000
-        height: 600
+          margins {
+            top: 50
+            left: (modelData.width - 1000) / 2
+          }
+
+          implicitWidth: 1000
+          implicitHeight: 600
 
         color: "transparent"
         mask: Region { item: container }
@@ -297,18 +305,18 @@ Item {
             flickable.contentY = Math.max(flickable.contentY - 50, 0)
             event.accepted = true
           } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
-            root.visible = false
+            root.isVisible = false
             event.accepted = true
           }
         }
 
-        focus: root.visible
         Component.onCompleted: {
-          if (root.visible) {
+          if (root.isVisible) {
             forceActiveFocus()
           }
         }
       }
+    }
     }
   }
 
@@ -321,17 +329,17 @@ Item {
   }
 
   function toggle() {
-    visible = !visible
-    if (visible) {
+    isVisible = !isVisible
+    if (isVisible) {
       currentPage = 0
     }
   }
 
   function show() {
-    visible = true
+    isVisible = true
   }
 
   function hide() {
-    visible = false
+    isVisible = false
   }
 }
