@@ -16,6 +16,7 @@ Scope {
         PanelWindow {
           id: leftIsland
           screen: modelData
+          exclusiveZone: 35
 
           anchors {
             top: true
@@ -53,6 +54,14 @@ Scope {
               }
 
               WindowTitleWidget {}
+
+              Rectangle {
+                width: 1
+                height: 18
+                color: Colors.border
+              }
+
+              TagIndicators {}
             }
           }
         }
@@ -61,6 +70,7 @@ Scope {
         PanelWindow {
           id: centerIsland
           screen: modelData
+          exclusiveZone: 35
 
           anchors {
             top: true
@@ -105,6 +115,7 @@ Scope {
         PanelWindow {
           id: rightIsland
           screen: modelData
+          exclusiveZone: 35
 
           anchors {
             top: true

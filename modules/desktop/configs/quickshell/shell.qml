@@ -43,10 +43,4 @@ Scope {
     model: Quickshell.screens
     delegate: Dock {}
   }
-
-  // Tag indicators (bottom right corner dots)
-  Variants {
-    model: Quickshell.screens
-    delegate: TagIndicators {}
-  }
 }
