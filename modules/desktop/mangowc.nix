@@ -67,21 +67,6 @@ let
     echo "Wallpaper switched to: $WALLPAPER_PATH"
   '';
 
-  # Mako starter script (ensures mako is running)
-  makoStarterScript = pkgs.writeShellScriptBin "start-mako" ''
-    #!/usr/bin/env bash
-    # Check if mako is already running
-    if pgrep -x mako > /dev/null; then
-      echo "Mako is already running"
-      exit 0
-    fi
-
-    # Start mako
-    echo "Starting mako notification daemon..."
-    mako --config /etc/xdg/mako/config &
-    echo "Mako started"
-  '';
-
   # MangoWC IPC wrapper (mangoctl) using mmsg
   mangoctlScript = pkgs.writeShellScriptBin "mangoctl" ''
     #!/bin/sh
@@ -439,9 +424,6 @@ in
 
         # Wallpaper switcher helper
         wallpaperSwitcherScript
-
-        # Mako notification starter
-        makoStarterScript
       ]
       ++ (
         # Conditionally add bar based on user preference

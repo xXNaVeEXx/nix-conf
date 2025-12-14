@@ -4,15 +4,34 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// Theme manager - Central theme registry and switcher
+/**
+ * Theme Manager - Singleton for theme management
+ *
+ * Architecture:
+ * - Themes stored in memory for instant switching
+ * - Current theme saved to file for persistence
+ * - File read ONCE on startup (no continuous watching)
+ * - Wallpapers loaded from system config
+ *
+ * Usage:
+ *   Themes.switchTheme("tokyo")
+ *   Themes.currentTheme
+ *   Themes.getCurrentTheme()
+ */
 Item {
   id: root
 
-  // Current active theme (persisted via file)
-  property string currentTheme: "cyberpunk"  // Default until file is loaded
-  property bool initialLoadComplete: false
+  //=============================================================================
+  // PROPERTIES
+  //=============================================================================
 
-  // Available themes with all their properties
+  property string currentTheme: "cyberpunk"  // Current active theme
+  property bool initialLoadComplete: false   // Startup load status
+
+  //=============================================================================
+  // THEME DEFINITIONS
+  //=============================================================================
+
   property var themes: ({
     "cyberpunk": {
       name: "Cyberpunk",
@@ -187,7 +206,10 @@ Item {
     }
   })
 
-  // Load current theme from file ONCE on startup
+  //=============================================================================
+  // STARTUP - Load saved theme
+  //=============================================================================
+
   Process {
     id: initialThemeLoader
     running: true
@@ -196,29 +218,27 @@ Item {
     stdout: SplitParser {
       onRead: data => {
         var savedTheme = data.trim()
-        console.log("Reading saved theme from file:", savedTheme)
 
+        // Validate and apply saved theme
         if (savedTheme && themes[savedTheme]) {
           currentTheme = savedTheme
-          console.log("Loaded saved theme:", savedTheme)
+          console.log("Loaded theme:", savedTheme)
 
-          // Wait a bit for wallpaperPaths to load, then set wallpaper
+          // Set wallpaper after wallpaperPaths loads
           Qt.callLater(function() {
             var wallpaperPath = wallpaperPaths[savedTheme]
             if (wallpaperPath) {
               pendingWallpaperPath = wallpaperPath
               pendingThemeName = savedTheme
               wallpaperSwitcher.running = true
-              console.log("Setting wallpaper for theme:", savedTheme, "path:", wallpaperPath)
-            } else {
-              console.log("No wallpaper path found yet for:", savedTheme, "available:", Object.keys(wallpaperPaths))
             }
           })
         } else {
+          // Use default theme if no valid saved theme
           currentTheme = "cyberpunk"
-          console.log("No saved theme or invalid theme, defaulting to cyberpunk")
+          console.log("Using default theme: cyberpunk")
 
-          // Save default theme to file
+          // Persist default theme
           Qt.createQmlObject(
             'import Quickshell.Io; import QtQuick; Process { running: true; command: ["sh", "-c", "echo cyberpunk > /tmp/quickshell-current-theme"]; }',
             root
@@ -226,23 +246,16 @@ Item {
         }
 
         initialLoadComplete = true
-        console.log("Initial theme load complete. Current theme:", currentTheme)
       }
     }
   }
 
-  function getTheme(themeName) {
-    return themes[themeName] || themes["cyberpunk"]
-  }
+  //=============================================================================
+  // WALLPAPER MANAGEMENT
+  //=============================================================================
 
-  function getCurrentTheme() {
-    return getTheme(currentTheme)
-  }
+  property var wallpaperPaths: ({})  // Loaded from system config
 
-  // Wallpaper mapping - loaded from JSON file
-  property var wallpaperPaths: ({})
-
-  // Load wallpaper paths from system config
   Process {
     id: wallpaperLoader
     running: true
@@ -252,68 +265,51 @@ Item {
       onRead: data => {
         try {
           wallpaperPaths = JSON.parse(data)
-          console.log("Loaded wallpaper paths for themes:", Object.keys(wallpaperPaths).join(", "))
+          console.log("Loaded wallpapers for:", Object.keys(wallpaperPaths).join(", "))
         } catch (e) {
-          console.log("Failed to parse wallpaper paths:", e)
+          console.log("ERROR loading wallpapers:", e)
         }
       }
     }
   }
 
-  // Process for switching wallpaper
-  property string pendingWallpaperPath: ""
-  property string pendingThemeName: ""
-  property string pendingThemeDisplayName: ""
+  //=============================================================================
+  // THEME SWITCHING - Internal processes
+  //=============================================================================
+
+  property string pendingWallpaperPath: ""  // Pending wallpaper to apply
+  property string pendingThemeName: ""      // Pending theme to save
 
   Process {
     id: wallpaperSwitcher
     running: false
     command: ["quickshell-switch-wallpaper", pendingWallpaperPath]
 
-    onRunningChanged: {
-      if (!running && pendingThemeName) {
-        console.log("Wallpaper switched to:", pendingWallpaperPath)
-        // Send notification after wallpaper switches
-        notificationSender.running = true
-      }
-    }
-
     stdout: SplitParser {
-      onRead: data => {
-        console.log("Wallpaper switcher:", data)
-      }
+      onRead: data => console.log("Wallpaper switched:", data.trim())
     }
-  }
-
-  Process {
-    id: notificationSender
-    running: false
-    command: ["notify-send", "Theme Switcher", "Switched to " + pendingThemeDisplayName, "-i", "preferences-desktop-theme"]
   }
 
   Process {
     id: themeStateSaver
     running: false
-    // Simple file write for persistence (no coordination needed, just save and forget)
-    command: ["sh", "-c", "echo '" + pendingThemeName + "' > /tmp/quickshell-current-theme && echo 'Saved theme: " + pendingThemeName + " to file'"]
-
-    stdout: SplitParser {
-      onRead: data => {
-        console.log("Theme file write:", data.trim())
-      }
-    }
+    command: ["sh", "-c", "echo '" + pendingThemeName + "' > /tmp/quickshell-current-theme"]
 
     stderr: SplitParser {
-      onRead: data => {
-        console.log("Theme file write ERROR:", data.trim())
-      }
+      onRead: data => console.log("ERROR saving theme:", data.trim())
     }
+  }
 
-    onRunningChanged: {
-      if (!running) {
-        console.log("Theme save process completed for:", pendingThemeName)
-      }
-    }
+  //=============================================================================
+  // PUBLIC API
+  //=============================================================================
+
+  function getTheme(themeName) {
+    return themes[themeName] || themes["cyberpunk"]
+  }
+
+  function getCurrentTheme() {
+    return getTheme(currentTheme)
   }
 
   function getWallpaperPath(themeName) {
@@ -321,44 +317,33 @@ Item {
   }
 
   function switchTheme(newTheme) {
-    if (themes[newTheme]) {
-      console.log("=== THEME SWITCH START ===")
-      console.log("Switching from:", currentTheme, "to:", newTheme)
-
-      // Update theme immediately in memory (this triggers color changes)
-      currentTheme = newTheme
-      console.log("Theme updated in memory to:", currentTheme)
-
-      // Get wallpaper path from loaded mappings
-      var wallpaperPath = wallpaperPaths[newTheme]
-      if (!wallpaperPath) {
-        console.log("Warning: No wallpaper path found for theme:", newTheme)
-        wallpaperPath = ""
-      }
-
-      console.log("Wallpaper path:", wallpaperPath)
-
-      // Set pending values for the processes
-      pendingThemeName = newTheme
-      pendingThemeDisplayName = themes[newTheme].name
-      pendingWallpaperPath = wallpaperPath
-
-      // Save to file for persistence (fire and forget)
-      themeStateSaver.running = true
-
-      // Switch wallpaper
-      if (wallpaperPath) {
-        wallpaperSwitcher.running = true
-      }
-
-      // Send notification immediately
-      console.log("Sending notification: Switched to", themes[newTheme].name)
-      Qt.createQmlObject(
-        'import Quickshell.Io; import QtQuick; Process { running: true; command: ["notify-send", "Theme Switcher", "Switched to ' + themes[newTheme].name + '", "-i", "preferences-desktop-theme", "-t", "3000"]; }',
-        root
-      )
-
-      console.log("=== THEME SWITCH COMPLETE ===")
+    if (!themes[newTheme]) {
+      console.log("ERROR: Unknown theme:", newTheme)
+      return
     }
+
+    console.log("Switching theme:", currentTheme, "→", newTheme)
+
+    // Update theme immediately in memory (triggers color changes)
+    currentTheme = newTheme
+
+    // Prepare wallpaper and persistence
+    var wallpaperPath = wallpaperPaths[newTheme] || ""
+    pendingThemeName = newTheme
+    pendingWallpaperPath = wallpaperPath
+
+    // Save theme to file for persistence
+    themeStateSaver.running = true
+
+    // Switch wallpaper if available
+    if (wallpaperPath) {
+      wallpaperSwitcher.running = true
+    }
+
+    // Show notification
+    Qt.createQmlObject(
+      'import Quickshell.Io; import QtQuick; Process { running: true; command: ["notify-send", "Theme Switcher", "Switched to ' + themes[newTheme].name + '", "-i", "preferences-desktop-theme", "-t", "3000"]; }',
+      root
+    )
   }
 }
