@@ -398,6 +398,7 @@ in
 
         # Notification daemon
         mako
+        libnotify     # notify-send command for sending notifications
 
         # Screenshot tools
         grim
