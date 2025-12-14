@@ -41,6 +41,26 @@ case "$THEME" in
         SWAYLOCK_RING="6d3a7e"
         SWAYLOCK_KEY="ff6ec7"
         ;;
+    "tokyo")
+        WALLPAPER_URL="https://r4.wallpaperflare.com/wallpaper/836/414/353/city-urban-street-asia-wallpaper-424152f0ad06deeb4af8a21540e80962.jpg"
+        MAKO_BG="#1a0a14dd"
+        MAKO_BORDER="#ff3366"
+        MAKO_TEXT="#ffe9f5"
+        MAKO_PROGRESS="#ff6b9d"
+        SWAYLOCK_BG="1a0a14"
+        SWAYLOCK_RING="8d2e6e"
+        SWAYLOCK_KEY="ff3366"
+        ;;
+    "future")
+        WALLPAPER_URL="https://r4.wallpaperflare.com/wallpaper/506/679/697/city-futuristic-digital-art-cheng-yu-wallpaper-86257bc769cf2ab70d65ac7d1b5c2384.jpg"
+        MAKO_BG="#0a0f1edd"
+        MAKO_BORDER="#00ccff"
+        MAKO_TEXT="#e0f2fe"
+        MAKO_PROGRESS="#00ffff"
+        SWAYLOCK_BG="0a0f1e"
+        SWAYLOCK_RING="1e40af"
+        SWAYLOCK_KEY="00ccff"
+        ;;
     *)
         echo "Unknown theme: $THEME"
         exit 1

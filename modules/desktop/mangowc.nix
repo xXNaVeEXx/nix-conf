@@ -13,10 +13,20 @@ let
     cyberpunk = pkgs.fetchurl {
       url = "https://images.unsplash.com/photo-1517154421773-0529f29ea451?q=80&w=3270&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
       sha256 = "0km2dyifda53fwg592z701kf68hwa8fgin1yl2x351vgpmx8g4gn";
+      name = "cyberpunk-wallpaper.jpg";
     };
     sunset = pkgs.fetchurl {
       url = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=3270&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
-      sha256 = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd";  # Run nix-prefetch-url to get real hash
+      sha256 = "14ysd780873dmmbmrprn032lwpj4mx55brdb134fadfjdmdl610f";
+      name = "sunset-wallpaper.jpg";
+    };
+    tokyo = pkgs.fetchurl {
+      url = "https://r4.wallpaperflare.com/wallpaper/836/414/353/city-urban-street-asia-wallpaper-424152f0ad06deeb4af8a21540e80962.jpg";
+      sha256 = "0nn420z0kbw6zl1rj2ky6412ghh8zn95j8j0mipsvl2xxi260jc7";
+    };
+    future = pkgs.fetchurl {
+      url = "https://r4.wallpaperflare.com/wallpaper/506/679/697/city-futuristic-digital-art-cheng-yu-wallpaper-86257bc769cf2ab70d65ac7d1b5c2384.jpg";
+      sha256 = "1qwphcgdj8m39757nj6y3ph7x3b5jbgg4v8yas5piqs2c2scqdim";
     };
   };
 
@@ -35,6 +45,41 @@ let
   keybindingsCheatsheetScript = pkgs.writeShellScriptBin "quickshell-keybindings-toggle" ''
     # Toggle keybindings cheatsheet in quickshell
     echo "toggle-keybindings-cheatsheet" > /tmp/quickshell-command
+  '';
+
+  # Wallpaper switcher script
+  wallpaperSwitcherScript = pkgs.writeShellScriptBin "quickshell-switch-wallpaper" ''
+    #!/usr/bin/env bash
+    WALLPAPER_PATH="$1"
+
+    if [ -z "$WALLPAPER_PATH" ]; then
+      echo "Usage: $0 <wallpaper-path>"
+      exit 1
+    fi
+
+    # Kill existing swaybg
+    pkill swaybg 2>/dev/null
+    sleep 0.2
+
+    # Start new swaybg in background, detached from this script
+    setsid swaybg -i "$WALLPAPER_PATH" -m fill >/dev/null 2>&1 &
+
+    echo "Wallpaper switched to: $WALLPAPER_PATH"
+  '';
+
+  # Mako starter script (ensures mako is running)
+  makoStarterScript = pkgs.writeShellScriptBin "start-mako" ''
+    #!/usr/bin/env bash
+    # Check if mako is already running
+    if pgrep -x mako > /dev/null; then
+      echo "Mako is already running"
+      exit 0
+    fi
+
+    # Start mako
+    echo "Starting mako notification daemon..."
+    mako --config /etc/xdg/mako/config &
+    echo "Mako started"
   '';
 
   # MangoWC IPC wrapper (mangoctl) using mmsg
@@ -226,6 +271,14 @@ let
 
   # Quickshell configuration directory
   quickshellConfigDir = ./configs/quickshell;
+
+  # Wallpaper mapping file for runtime theme switching
+  wallpaperMapFile = pkgs.writeText "wallpaper-map.json" (builtins.toJSON {
+    cyberpunk = "${wallpapers.cyberpunk}";
+    sunset = "${wallpapers.sunset}";
+    tokyo = "${wallpapers.tokyo}";
+    future = "${wallpapers.future}";
+  });
 in
 
 {
@@ -382,6 +435,12 @@ in
 
         # MangoWC IPC wrapper
         mangoctlScript
+
+        # Wallpaper switcher helper
+        wallpaperSwitcherScript
+
+        # Mako notification starter
+        makoStarterScript
       ]
       ++ (
         # Conditionally add bar based on user preference
@@ -400,6 +459,9 @@ in
         {
           source = quickshellConfigDir;
         };
+
+    # Wallpaper mapping for theme switcher
+    environment.etc."xdg/quickshell-wallpapers.json".source = wallpaperMapFile;
 
     # Mako notification daemon configuration
     environment.etc."xdg/mako/config".source = ./configs/mako/config;

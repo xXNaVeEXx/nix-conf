@@ -159,24 +159,73 @@ Item {
                       Layout.alignment: Qt.AlignHCenter
                     }
 
-                    // Large color preview (gradient)
+                    // Wallpaper preview
                     Rectangle {
                       Layout.fillWidth: true
-                      Layout.preferredHeight: 70
+                      Layout.preferredHeight: 80
                       radius: 8
-
-                      gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: themeData.neonBlue }
-                        GradientStop { position: 0.33; color: themeData.neonPurple }
-                        GradientStop { position: 0.66; color: themeData.neonCyan }
-                        GradientStop { position: 1.0; color: themeData.neonYellow }
-                      }
-
+                      color: themeData.bg
                       border.color: themeData.borderGlow
                       border.width: 2
+                      clip: true
 
-                      // Glow effect
+                      // Wallpaper image
+                      Image {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: "file://" + Themes.getWallpaperPath(modelData)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        smooth: true
+
+                        onStatusChanged: {
+                          if (status === Image.Ready) {
+                            console.log("Wallpaper loaded for", modelData, ":", source)
+                          } else if (status === Image.Error) {
+                            console.log("Failed to load wallpaper for", modelData, ":", source)
+                          }
+                        }
+
+                        Component.onCompleted: {
+                          console.log("Wallpaper preview for", modelData, "path:", Themes.getWallpaperPath(modelData))
+                        }
+
+                        // Fallback to gradient if image fails to load
+                        Rectangle {
+                          anchors.fill: parent
+                          visible: parent.status === Image.Error || parent.status === Image.Null
+                          radius: 6
+
+                          gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: themeData.neonBlue }
+                            GradientStop { position: 0.33; color: themeData.neonPurple }
+                            GradientStop { position: 0.66; color: themeData.neonCyan }
+                            GradientStop { position: 1.0; color: themeData.neonYellow }
+                          }
+
+                          // Debug text to show status
+                          Text {
+                            anchors.centerIn: parent
+                            text: "Loading..."
+                            color: "white"
+                            font.pixelSize: 10
+                            visible: parent.visible
+                          }
+                        }
+                      }
+
+                      // Overlay gradient for better text contrast
+                      Rectangle {
+                        anchors.fill: parent
+                        radius: 8
+                        gradient: Gradient {
+                          GradientStop { position: 0.0; color: "transparent" }
+                          GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.3) }
+                        }
+                      }
+
+                      // Glow effect when selected
                       layer.enabled: isSelected
                     }
 
@@ -238,10 +287,10 @@ Item {
               event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
               Themes.switchTheme(root.themeKeys[root.selectedIndex])
-              root.visible = false
+              // Keep window open - user can close with q or Escape
               event.accepted = true
             } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
-              root.visible = false
+              root.isVisible = false
               event.accepted = true
             }
           }
