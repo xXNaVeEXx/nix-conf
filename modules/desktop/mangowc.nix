@@ -37,6 +37,50 @@ let
     echo "toggle-keybindings-cheatsheet" > /tmp/quickshell-command
   '';
 
+  # MangoWC IPC wrapper (mangoctl) using mmsg
+  mangoctlScript = pkgs.writeShellScriptBin "mangoctl" ''
+    #!/bin/sh
+    # MangoWC IPC wrapper using mmsg
+
+    # Ensure proper environment for mmsg
+    if [ -z "$XDG_RUNTIME_DIR" ]; then
+      export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    fi
+
+    # Auto-detect Wayland display socket
+    if [ -z "$WAYLAND_DISPLAY" ]; then
+      if [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
+        export WAYLAND_DISPLAY="wayland-0"
+      elif [ -S "$XDG_RUNTIME_DIR/wayland-1" ]; then
+        export WAYLAND_DISPLAY="wayland-1"
+      fi
+    fi
+
+    case "$1" in
+      get-active-tag)
+        # Parse mmsg output to get active tag
+        # Format: "Virtual-1 tag <num> <flag1> <flag2> <flag3>"
+        # The second flag (field 5) appears to indicate the active/focused tag
+        TAG=$(timeout 0.5 mmsg -g 2>/dev/null | grep "^Virtual-1 tag" | awk '$5 == "1" {print $3; exit}')
+        if [ -z "$TAG" ]; then
+          # Fallback: get first selected tag (field 4)
+          TAG=$(timeout 0.5 mmsg -g 2>/dev/null | grep "^Virtual-1 tag" | awk '$4 == "1" {print $3; exit}')
+        fi
+        echo "''${TAG:-1}"
+        ;;
+      get-active-window-title)
+        # Parse mmsg output to get window title
+        # Format: "Virtual-1 title <title text>"
+        TITLE=$(timeout 0.5 mmsg -w 2>/dev/null | grep "^Virtual-1 title" | cut -d' ' -f3-)
+        echo "''${TITLE:-Desktop}"
+        ;;
+      *)
+        echo "Usage: mangoctl {get-active-tag|get-active-window-title}"
+        exit 1
+        ;;
+    esac
+  '';
+
   quickshellLauncher = pkgs.writeShellScript "quickshell-launcher" ''
     #!${pkgs.bash}/bin/bash
     cd "${config.environment.etc."xdg/quickshell".source}"
@@ -332,6 +376,9 @@ in
 
         # Remote desktop (VNC server)
         wayvnc
+
+        # MangoWC IPC wrapper
+        mangoctlScript
       ]
       ++ (
         # Conditionally add bar based on user preference
@@ -391,10 +438,13 @@ in
       after = [ "graphical-session.target" ];
       serviceConfig = {
         Type = "simple";
-        ExecStartPre = "${pkgs.coreutils}/bin/sleep 3";
-        ExecStart = "${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config";
+        ExecStartPre = "${pkgs.bash}/bin/bash -c '${pkgs.coreutils}/bin/sleep 8'";
+        ExecStart = "${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config 0.0.0.0 5900";
         Restart = "on-failure";
         RestartSec = "5";
+        Environment = [
+          "WAYLAND_DISPLAY=wayland-0"
+        ];
       };
     };
   };
