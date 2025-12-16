@@ -84,6 +84,8 @@
       tmux
       lazygit
       nerd-fonts.gohufont
+
+      kubectl
     ]
     ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
       bitwarden-desktop

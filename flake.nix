@@ -68,11 +68,11 @@
 
       # macOS Configuration
       darwinConfigurations = {
-        macbook = darwin.lib.darwinSystem {
+        macbookpro = darwin.lib.darwinSystem {
           system = "aarch64-darwin";
           specialArgs = { inherit dotfiles; };
           modules = [
-            ./hosts/macbook/configuration.nix
+            ./hosts/macbookpro/configuration.nix
 
             home-manager.darwinModules.home-manager
             {
