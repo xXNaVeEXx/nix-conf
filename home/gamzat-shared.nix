@@ -96,6 +96,9 @@ in
     copyq
 
     claude-code
+    gemini-cli
+
+    
 
     # Custom scripts
     rebuild-script
