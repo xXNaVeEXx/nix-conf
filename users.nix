@@ -9,6 +9,8 @@
       "wheel"
       "input" # for mouse input when streaming
       "docker"
+      "kvm"
+      "adbusers"
     ];
     shell = pkgs.zsh;
     packages = with pkgs; [

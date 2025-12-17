@@ -147,6 +147,7 @@ in
   programs.firefox.enable = true;
 
   programs.zsh.enable = true;
+  programs.adb.enable = true;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -180,6 +181,12 @@ in
     libsForQt5.qt5.qtdeclarative # QML
     claude-code
     gemini-cli
+
+    # OpenGL/Mesa packages for VM graphics
+    mesa
+    mesa.drivers
+    libGL
+    libGLU
 
     # bash scripts
     rebuild-script

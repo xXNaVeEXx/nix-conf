@@ -3,6 +3,12 @@
 {
   home.stateVersion = "25.11";
 
+  # Wayland environment variables for root
+  home.sessionVariables = {
+    XDG_RUNTIME_DIR = "/run/user/1000";
+    WAYLAND_DISPLAY = "wayland-0";
+  };
+
   home.file.".config/nvim" = {
     source = "${dotfiles}/nvim";
     recursive = true;

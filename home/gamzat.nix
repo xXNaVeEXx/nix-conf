@@ -14,6 +14,12 @@ in
 {
   home.stateVersion = "25.11";
 
+  # Wayland environment variables
+  home.sessionVariables = {
+    XDG_RUNTIME_DIR = "/run/user/1000";
+    WAYLAND_DISPLAY = "wayland-0";
+  };
+
   programs.neovim = {
     enable = true;
     defaultEditor = true;
