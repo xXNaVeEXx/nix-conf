@@ -4,6 +4,7 @@
 
 { config, pkgs, ... }:
 
+
 let
   rebuild-script = pkgs.writeScriptBin "rebuild" ''
     #!/usr/bin/env bash
@@ -40,6 +41,16 @@ let
 in
 
 {
+  #Automatic updating
+  system.autoUpgrade.enable = true;
+  system.autoUpgrade.dates = "weekly";
+
+  # Automatic cleanup
+  nix.gc.automatic= true;
+  nix.gc.dates = "daily";
+  nix.gc.options = "--delete-older-than 3d";
+  nix.settings.auto-optimise-store= true;
+
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
@@ -147,7 +158,16 @@ in
   programs.firefox.enable = true;
 
   programs.zsh.enable = true;
+
+  # for android emulation
   programs.adb.enable = true;
+  programs.nix-ld.enable = true;
+
+  programs.nix-ld.libraries = with pkgs; [
+    stdenv.cc.cc.lib
+    zlib
+    glibc
+  ];
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -187,6 +207,9 @@ in
     mesa.drivers
     libGL
     libGLU
+
+    # nix cli
+    nh
 
     # bash scripts
     rebuild-script
