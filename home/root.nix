@@ -45,6 +45,32 @@
 
   ];
 
+  # sops-nix home-manager configuration
+  sops = {
+    age.keyFile = "~/.config/sops/age/key.txt";
+    defaultSopsFile = ../../secrets/secrets.yaml;
+
+    # Example secrets - uncomment and customize as needed
+    # secrets.example-key = {
+    #   path = "%r/example-secret";
+    # };
+  };
+
+  # sops configuration for manual encryption/decryption
+  home.file.".config/sops/.sops.yaml".text = ''
+    keys:
+      - &admin_key age14pdqf7sl4sltz442mvfyafchvxn5wvv988gv6enhhrmyx3ch5qfs5y6atl
+
+    creation_rules:
+      # Kubernetes configs
+      - path_regex: \.kube/.*
+        age: *admin_key
+
+      # All other files
+      - path_regex: .*
+        age: *admin_key
+  '';
+
   # Tmux configuration from dotfiles
   home.file.".tmux.conf" = {
     source = "${dotfiles}/tmux/.tmux.conf";
