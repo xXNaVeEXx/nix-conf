@@ -33,6 +33,12 @@ in
     clipboard.copyq = true;
   };
 
+  # sops-nix configuration
+  sops = {
+    defaultSopsFile = ../../secrets/secrets.yaml;
+    age.keyFile = "/Users/gamzat/.config/sops/age/key.txt";
+  };
+
   nix.enable = false;
 
   nix.settings = {

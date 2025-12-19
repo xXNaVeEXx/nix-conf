@@ -77,6 +77,11 @@ in
       tmux
       lazygit
       nerd-fonts.gohufont
+
+      sops
+      age
+
+
     ]
     ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
       bitwarden-desktop

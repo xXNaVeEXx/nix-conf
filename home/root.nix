@@ -39,6 +39,10 @@
     tmux
     lazygit
     nerd-fonts.gohufont
+
+    sops
+    age
+
   ];
 
   # Tmux configuration from dotfiles

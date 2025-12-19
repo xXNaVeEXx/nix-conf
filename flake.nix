@@ -29,6 +29,11 @@
       url = "git+https://git.outfoxxed.me/quickshell/quickshell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -41,6 +46,7 @@
       dotfiles,
       mangowc,
       quickshell,
+      sops-nix,
     }:
     {
       # NixOS Configuration
@@ -73,6 +79,7 @@
           specialArgs = { inherit dotfiles; };
           modules = [
             ./hosts/macbookpro/configuration.nix
+            sops-nix.darwinModules.sops
 
             home-manager.darwinModules.home-manager
             {

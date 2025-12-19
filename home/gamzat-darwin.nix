@@ -91,6 +91,9 @@
       nerd-fonts.gohufont
 
       kubectl
+
+       sops
+       age
     ]
     ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
       bitwarden-desktop
@@ -130,4 +133,22 @@
 
   # Create .config/zsh directory for history file
   home.file.".config/zsh/.keep".text = "";
+
+  # sops configuration
+  home.file.".config/sops/.sops.yaml".text = ''
+    keys:
+      - &admin_key age14pdqf7sl4sltz442mvfyafchvxn5wvv988gv6enhhrmyx3ch5qfs5y6atl
+
+    creation_rules:
+      # Kubernetes configs
+      - path_regex: \.kube/.*
+        age: *admin_key
+
+      # All other files
+      - path_regex: .*
+        age: *admin_key
+  '';
+
+  # Copy age key to standard location
+  home.file.".config/sops/age/key.txt".source = ../secrets/age/key.txt;
 }
