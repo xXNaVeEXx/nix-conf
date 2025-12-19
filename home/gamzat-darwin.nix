@@ -27,6 +27,11 @@
     source = "${dotfiles}/zsh/.zshrc";
   };
 
+  home.file.".config/.kube" = {
+    source = "${dotfiles}/.kube";
+    recursive = true;
+  };
+
   home.file.".p10k.zsh" = {
     source = "${dotfiles}/zsh/.p10k.zsh";
   };
