@@ -62,8 +62,8 @@ Item {
     ],
     "Clipboard & Screenshots": [
       { key: "ALT + Shift + V", desc: "Clipboard history" },
-      { key: "ALT + Print", desc: "Full screenshot" },
-      { key: "ALT + Shift + Print", desc: "Selection screenshot" }
+      { key: "ALT + *", desc: "Full screenshot" },
+      { key: "ALT + Shift + *", desc: "Selection screenshot" }
     ],
     "Media Keys": [
       { key: "XF86AudioRaiseVolume", desc: "Volume up (+5%)" },

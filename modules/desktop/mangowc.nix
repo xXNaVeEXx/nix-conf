@@ -236,8 +236,8 @@ let
     bind=ALT,BracketLeft,switch_proportion_preset
     bind=ALT+SHIFT,BracketRight,incnmaster,1
     bind=ALT+SHIFT,BracketLeft,incnmaster,-1
-    bind=ALT,Print,spawn,grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
-    bind=ALT+SHIFT,Print,spawn,grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+    bind=ALT,asterisk,spawn,grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+    bind=ALT+SHIFT,asterisk,spawn,grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
     bind=ALT,R,reload_config
     bind=code:133,M,quit
     bind=code:133,L,spawn,swaylock
