@@ -148,7 +148,4 @@
       - path_regex: .*
         age: *admin_key
   '';
-
-  # Copy age key to standard location
-  home.file.".config/sops/age/key.txt".source = ../secrets/age/key.txt;
 }
