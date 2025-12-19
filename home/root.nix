@@ -14,6 +14,11 @@
     recursive = true;
   };
 
+  home.file.".config/.kube" = {
+    source = "${dotfiles}/.kube";
+    recursive = true;
+  };
+
   # Gleiche Zsh-Config wie gamzat
   home.file.".zshrc" = {
     source = "${dotfiles}/zsh/.zshrc";

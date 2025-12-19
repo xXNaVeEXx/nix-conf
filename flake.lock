@@ -23,11 +23,11 @@
     "dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1766012766,
-        "narHash": "sha256-QVjH339o7D8BV0JL5kCyMhkK/nG1WhhgO9S/aDoCs4U=",
+        "lastModified": 1766135013,
+        "narHash": "sha256-LFMrH5hjPlMW1Kvu/2pjsZlpF0Xxkk5ua5/VFF5fe6Y=",
         "owner": "xXNaVeEXx",
         "repo": "dotfiles",
-        "rev": "3afa2952e004eeaba56cc711b2f8f8883b691d2e",
+        "rev": "58b070396cd95795c76d3ab829288aca6e3c1f07",
         "type": "github"
       },
       "original": {
@@ -83,11 +83,11 @@
         "scenefx": "scenefx"
       },
       "locked": {
-        "lastModified": 1766026313,
-        "narHash": "sha256-o5QK92krLQopYwQkptJeJ0DurhSQox9iQcAtMijTKnQ=",
+        "lastModified": 1766133830,
+        "narHash": "sha256-TS8jnZGAAIENNWNYOGNcWSecU2fRKwfBgxCYrlHbt4w=",
         "owner": "DreamMaoMao",
         "repo": "mangowc",
-        "rev": "5f884bdf514c8dc96f2bbd0a78987bc28982fe61",
+        "rev": "e26e477d6ba700d80461404141550ac1b0e79d28",
         "type": "github"
       },
       "original": {
