@@ -53,7 +53,7 @@
       nixosConfigurations = {
         nixos = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
-          specialArgs = { inherit dotfiles mangowc quickshell; };
+          specialArgs = { inherit dotfiles mangowc quickshell sops-nix; };
           modules = [
             ./hosts/nixos/configuration.nix
 
@@ -64,9 +64,10 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit dotfiles mangowc quickshell; };
+              home-manager.extraSpecialArgs = { inherit dotfiles mangowc quickshell sops-nix; };
               home-manager.users.gamzat = import ./home/gamzat.nix;
               home-manager.users.root = import ./home/root.nix;
+              home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
             }
           ];
         };
@@ -76,7 +77,7 @@
       darwinConfigurations = {
         macbookpro = darwin.lib.darwinSystem {
           system = "aarch64-darwin";
-          specialArgs = { inherit dotfiles; };
+          specialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./hosts/macbookpro/configuration.nix
             sops-nix.darwinModules.sops
@@ -86,8 +87,9 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit dotfiles; };
+              home-manager.extraSpecialArgs = { inherit dotfiles sops-nix; };
               home-manager.users.gamzat = import ./home/gamzat-darwin.nix;
+              home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
             }
           ];
         };
@@ -97,50 +99,55 @@
       homeConfigurations = {
         "gamzat@cachyos" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles; };
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./home/gamzat-cachyos.nix
             { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
           ];
         };
 
         # Shared configuration for gamzat-dev and other systems
         "gamzat@shared" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles; };
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./home/gamzat-shared.nix
             { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
           ];
         };
 
         # Configuration for gamzat-dev hostname
         "gamzat@gamzat-dev" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles; };
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./home/gamzat-shared.nix
             { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
           ];
         };
 
         # Configuration for maga-dev hostname
         "maga@maga-dev" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles; };
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./home/maga-dev.nix
             { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
           ];
         };
 
         # Configuration for marv-dev hostname
         "marv@marv-dev" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles; };
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
           modules = [
             ./home/marv-dev.nix
             { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
           ];
         };
 
