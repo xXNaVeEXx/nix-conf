@@ -4,7 +4,6 @@
 
 { config, pkgs, ... }:
 
-
 let
   rebuild-script = pkgs.writeScriptBin "rebuild" ''
     #!/usr/bin/env bash
@@ -46,10 +45,10 @@ in
   system.autoUpgrade.dates = "weekly";
 
   # Automatic cleanup
-  nix.gc.automatic= true;
+  nix.gc.automatic = true;
   nix.gc.dates = "daily";
   nix.gc.options = "--delete-older-than 3d";
-  nix.settings.auto-optimise-store= true;
+  nix.settings.auto-optimise-store = true;
 
   imports = [
     # Include the results of the hardware scan.
@@ -102,7 +101,11 @@ in
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "/dev/sda";
   boot.loader.grub.useOSProber = true;
-  boot.kernelModules = [ "uinput" ];
+  boot.kernelModules = [
+    "uinput"
+    "br_netfilter"
+    "overlay"
+  ];
 
   # Virtio GPU Support for proxmox
   boot.initrd.kernelModules = [ "virtio_gpu" ];
@@ -225,11 +228,36 @@ in
 
   virtualisation.docker.enable = true;
 
+  # k3s worker
+  # Enable K3s agent
+  services.k3s = {
+    enable = true;
+    role = "agent";
+    serverAddr = "https://k3s-controller:6443"; # Your controller IP
+    tokenFile = "/etc/nixos/secrets/k3s-token.key"; # Read from file instead
+
+    extraFlags = [
+      "--node-name ${config.networking.hostName}"
+    ];
+  };
+
+  # Sysctl settings for Kubernetes
+  boot.kernel.sysctl = {
+    "net.bridge.bridge-nf-call-iptables" = 1;
+    "net.bridge.bridge-nf-call-ip6tables" = 1;
+    "net.ipv4.ip_forward" = 1;
+  };
+
   # List services that you want to enable:
 
   # Open ports in the firewall.
-  networking.firewall.allowedTCPPorts = [ 5900 ]; # Wayvnc VNC port
-  # networking.firewall.allowedUDPPorts = [ ... ];
+  networking.firewall = {
+    allowedTCPPorts = [
+      5900
+      10250
+    ]; # Wayvnc VNC port, Kubelet
+    allowedUDPPorts = [ 8472 ]; # Flannel VXLAN (if using flannel)
+  };
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
 
