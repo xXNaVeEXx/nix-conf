@@ -69,6 +69,23 @@ let
     wtype -M ctrl v -m ctrl
   '';
 
+  # Screenshot scripts
+  screenshotFullScript = pkgs.writeShellScriptBin "screenshot-full" ''
+    #!/usr/bin/env bash
+    FILENAME="$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png"
+    grim "$FILENAME"
+    wl-copy < "$FILENAME"
+    notify-send "Screenshot" "Full screenshot saved and copied to clipboard"
+  '';
+
+  screenshotSelectScript = pkgs.writeShellScriptBin "screenshot-select" ''
+    #!/usr/bin/env bash
+    FILENAME="$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png"
+    grim -g "$(slurp)" "$FILENAME"
+    wl-copy < "$FILENAME"
+    notify-send "Screenshot" "Selection saved and copied to clipboard"
+  '';
+
   # Wallpaper switcher script
   wallpaperSwitcherScript = pkgs.writeShellScriptBin "quickshell-switch-wallpaper" ''
     #!/usr/bin/env bash
@@ -236,8 +253,8 @@ let
     bind=ALT,BracketLeft,switch_proportion_preset
     bind=ALT+SHIFT,BracketRight,incnmaster,1
     bind=ALT+SHIFT,BracketLeft,incnmaster,-1
-    bind=ALT,asterisk,spawn,grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
-    bind=ALT+SHIFT,asterisk,spawn,grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+    bind=ALT,0,spawn,${screenshotSelectScript}/bin/screenshot-select
+    bind=ALT+SHIFT,0,spawn,${screenshotFullScript}/bin/screenshot-full
     bind=ALT,R,reload_config
     bind=code:133,M,quit
     bind=code:133,L,spawn,swaylock
@@ -462,6 +479,13 @@ in
 
         # Wallpaper switcher helper
         wallpaperSwitcherScript
+
+        # Screenshot scripts
+        screenshotFullScript
+        screenshotSelectScript
+
+        # File manager
+        nautilus
       ]
       ++ (
         # Conditionally add bar based on user preference
