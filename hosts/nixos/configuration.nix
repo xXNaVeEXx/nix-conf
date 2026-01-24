@@ -163,8 +163,6 @@ in
 
   programs.zsh.enable = true;
 
-  # for android emulation
-  programs.adb.enable = true;
   programs.nix-ld.enable = true;
 
   programs.nix-ld.libraries = with pkgs; [
@@ -178,6 +176,7 @@ in
   environment.systemPackages = with pkgs; [
     #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     #  wget
+    android-tools # adb for android emulation
     wayvnc # Native Wayland VNC server
     wl-clipboard
     wf-recorder # Screen recording for Wayland
