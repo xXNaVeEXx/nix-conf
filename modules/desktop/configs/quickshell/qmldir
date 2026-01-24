@@ -8,6 +8,7 @@ singleton SystemInfo 1.0 SystemInfo.qml
 singleton TagName 1.0 TagName.qml
 singleton WindowTitle 1.0 WindowTitle.qml
 singleton Wlan 1.0 Wlan.qml
+singleton WayVNC 1.0 WayVNC.qml
 singleton Time 1.0 Time.qml
 singleton ActiveColors 1.0 ActiveColors.qml
 
@@ -22,4 +23,5 @@ TagIndicators 1.0 TagIndicators.qml
 TagNameWidget 1.0 TagNameWidget.qml
 ThemeSwitcher 1.0 ThemeSwitcher.qml
 WindowTitleWidget 1.0 WindowTitleWidget.qml
+WayVNCWidget 1.0 WayVNCWidget.qml
 WlanWidget 1.0 WlanWidget.qml

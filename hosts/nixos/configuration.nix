@@ -93,6 +93,7 @@ in
     terminal.wezterm = true;
     clipboard.copyq = true;
 
+    remote.wayvnc = true;
   };
 
   nixpkgs.config.allowUnfree = true;

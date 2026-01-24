@@ -161,6 +161,10 @@ let
   barCommand =
     if config.mySystem.desktop.bar == "quickshell" then "''${quickshellLauncher}" else "waybar";
 
+  # Optional wayvnc exec-once line
+  wayvncExecOnce =
+    if config.mySystem.remote.wayvnc then "exec-once=sleep 2 && ${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config 0.0.0.0 5900" else "";
+
   mangoConfig = pkgs.writeText "mango-config" ''
     output HEADLESS-1 {
         mode 2560x1440@144Hz
@@ -296,7 +300,7 @@ let
       timeout 540 'brightnessctl set 30%' resume 'brightnessctl set 100%' \
       timeout 600 'swaylock -f' \
       before-sleep 'swaylock -f'
-    exec-once=systemctl --user start wayvnc.service
+    ${wayvncExecOnce}
   '';
 
   # Quickshell configuration directory
@@ -530,22 +534,30 @@ in
     ];
 
     # Wayvnc configuration for remote desktop (RustDesk alternative)
-    environment.etc."xdg/wayvnc/config".text = ''
-      address=0.0.0.0
-      port=5900
-      enable_auth=true
-      username=remote
-      password=CHANGE_THIS_PASSWORD
-    '';
+    environment.etc."xdg/wayvnc/config" = lib.mkIf config.mySystem.remote.wayvnc {
+      text = ''
+        address=0.0.0.0
+        port=5900
+        enable_auth=true
+        username=remote
+        password=CHANGE_THIS_PASSWORD
+      '';
+    };
 
-    # Systemd user service for wayvnc (started by exec-once in MangoWC config)
-    systemd.user.services.wayvnc = lib.mkIf config.mySystem.desktop.mangowc {
+    # Systemd user service for wayvnc
+    systemd.user.services.wayvnc = lib.mkIf (config.mySystem.desktop.mangowc && config.mySystem.remote.wayvnc) {
       description = "Wayvnc VNC Server";
+      wantedBy = [ ];  # Don't auto-start via systemd, use exec-once instead
       serviceConfig = {
         Type = "simple";
+        ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";  # Wait for compositor
         ExecStart = "${pkgs.wayvnc}/bin/wayvnc -C /etc/xdg/wayvnc/config 0.0.0.0 5900";
-        Restart = "always";
+        Restart = "on-failure";
         RestartSec = "5";
+        Environment = [
+          "WAYLAND_DISPLAY=wayland-0"
+          "XDG_RUNTIME_DIR=/run/user/%U"
+        ];
       };
     };
   };

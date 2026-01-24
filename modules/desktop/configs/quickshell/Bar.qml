@@ -155,6 +155,14 @@ Scope {
 
               WlanWidget {}
 
+              Rectangle {
+                width: 1
+                height: 18
+                color: Colors.border
+              }
+
+              WayVNCWidget {}
+
               // System info toggle button
               Rectangle {
                 width: 24

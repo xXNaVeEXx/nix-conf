@@ -36,5 +36,8 @@
     networking = {
       tailscale = lib.mkEnableOption "Tailscale";
     };
+    remote = {
+      wayvnc = lib.mkEnableOption "Wayvnc VNC server for remote desktop";
+    };
   };
 }
