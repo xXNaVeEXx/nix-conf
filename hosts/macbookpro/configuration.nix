@@ -79,6 +79,7 @@ in
     claude-code
     gemini-cli
     bun
+    opencode
 
     # bash scripts
     rebuild-script

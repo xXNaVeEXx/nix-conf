@@ -204,6 +204,7 @@ in
     libsForQt5.qt5.qtdeclarative # QML
     claude-code
     gemini-cli
+    opencode
 
     # OpenGL/Mesa packages for VM graphics
     mesa

@@ -96,6 +96,7 @@ in
     copyq
 
     claude-code
+    opencode
 
     # Custom scripts
     rebuild-script
