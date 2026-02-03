@@ -78,6 +78,7 @@ in
     vscode-langservers-extracted
     claude-code
     gemini-cli
+    bun
 
     # bash scripts
     rebuild-script
