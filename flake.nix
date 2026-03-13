@@ -107,6 +107,16 @@
           ];
         };
 
+        "gamzat@cachydeck" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
+          modules = [
+            ./home/gamzat-cachyos.nix
+            { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
+          ];
+        };
+
         # Shared configuration for gamzat-dev and other systems
         "gamzat@shared" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
