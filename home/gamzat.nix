@@ -81,6 +81,7 @@ in
       sops
       age
 
+      opencloud-desktop
 
     ]
     ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
