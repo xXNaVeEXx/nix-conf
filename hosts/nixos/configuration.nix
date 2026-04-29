@@ -187,12 +187,22 @@ in
   virtualisation.docker.enable = true;
 
   # k3s worker
-  # Enable K3s agent
+  #
+  # tokenFile is read at activation time. The file is provisioned out-of-band
+  # — secrets/ is gitignored, so a fresh checkout starts empty. Drop the join
+  # token into <repo>/secrets/k3s-token.key (mode 0400, root-owned) before
+  # rebuilding, or k3s.service will fail to start.
+  #
+  # To move this under system-level sops-nix later:
+  #   1. Add sops-nix.nixosModules.sops to the nixos module list in flake.nix
+  #   2. Declare sops.defaultSopsFile + sops.age.keyFile (root-readable) here
+  #   3. sops.secrets.k3s-token = { sopsFile = ../../secrets/secrets.yaml; }
+  #   4. tokenFile = config.sops.secrets.k3s-token.path
   services.k3s = {
     enable = true;
     role = "agent";
-    serverAddr = "https://k3s-controller:6443"; # Your controller IP
-    tokenFile = "/etc/nixos/secrets/k3s-token.key"; # Read from file instead
+    serverAddr = "https://k3s-controller:6443";
+    tokenFile = "/etc/nixos/secrets/k3s-token.key";
 
     extraFlags = [
       "--node-name ${config.networking.hostName}"
