@@ -73,8 +73,6 @@
           modules = [
             ./hosts/nixos/configuration.nix
 
-            { nixpkgs.config.allowUnfree = true; }
-
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;

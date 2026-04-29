@@ -23,10 +23,22 @@ in
     WAYLAND_DISPLAY = "wayland-0";
   };
 
-  myHome.kube.enable = true;
+  myHome = {
+    kube.enable = true;
+    dev.enable = true;
+  };
 
   home.packages = with pkgs; [
     opencloud-desktop
+
+    # AI tooling
+    claude-code
+    gemini-cli
+    opencode
+
+    # Build tools beyond the dev base
+    rustup
+    dioxus-cli
   ];
 
   # Quickshell config — only when MangoWC compositor is the active session

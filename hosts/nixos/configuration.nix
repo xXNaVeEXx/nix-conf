@@ -5,23 +5,6 @@
 { config, pkgs, ... }:
 
 let
-  rebuild-script = pkgs.writeScriptBin "rebuild" ''
-    #!/usr/bin/env bash
-
-    # Find nix-config directory
-    if [ -d /etc/nixos ]; then
-      CONFIG_DIR="/etc/nixos"
-    elif [ -d "$HOME/nix-config" ]; then
-      CONFIG_DIR="$HOME/nix-config"
-    else
-      echo "Error: Could not find nix-config directory"
-      exit 1
-    fi
-
-    cd "$CONFIG_DIR"
-    exec ${pkgs.bash}/bin/bash "$CONFIG_DIR/rebuild.sh" "$@"
-  '';
-
   # RustDesk wrapper to force X11/XWayland mode
   rustdesk-x11 = pkgs.symlinkJoin {
     name = "rustdesk-x11";
@@ -56,6 +39,7 @@ in
 
     ../../options.nix
 
+    ../../modules/common
     ../../modules/desktop/gnome.nix
     ../../modules/desktop/pantheon.nix
     ../../modules/desktop/mangowc.nix
@@ -65,12 +49,6 @@ in
     ../../modules/services.nix
     ../../modules/browser/brave.nix
     ../../modules/networking/tailscale.nix
-  ];
-
-  # activate flakes
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
   ];
 
   mySystem = {
@@ -95,8 +73,6 @@ in
 
     remote.wayvnc = true;
   };
-
-  nixpkgs.config.allowUnfree = true;
 
   # Bootloader.
   boot.loader.grub.enable = true;
@@ -177,37 +153,17 @@ in
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-    #  wget
     android-tools # adb for android emulation
     wayvnc # Native Wayland VNC server
     wl-clipboard
     wf-recorder # Screen recording for Wayland
 
+    # General utilities — useful for sudo workflows; user-level installs are in home/
     git
     neovim
     ripgrep
     tmux
     fzf
-
-    clang
-    nodejs
-    unzip
-    cargo
-    rustc
-    rustup
-    dioxus-cli
-    # LSP Server direkt installieren
-    lua-language-server
-    nil # Nix LSP
-    typescript-language-server
-    rust-analyzer
-    clang-tools # clangd für C/C++
-    vscode-langservers-extracted # JSON, HTML, CSS LSPs
-    libsForQt5.qt5.qtdeclarative # QML
-    claude-code
-    gemini-cli
-    opencode
 
     # OpenGL/Mesa packages for VM graphics
     mesa
@@ -217,9 +173,6 @@ in
 
     # nix cli
     nh
-
-    # bash scripts
-    rebuild-script
   ];
 
   # Some programs need SUID wrappers, can be configured further or are

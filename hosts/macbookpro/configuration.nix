@@ -1,27 +1,9 @@
 { config, pkgs, ... }:
 
-let
-  rebuild-script = pkgs.writeScriptBin "rebuild" ''
-    #!/usr/bin/env bash
-
-    # Find nix-config directory
-    if [ -d "$HOME/nix-config" ]; then
-      CONFIG_DIR="$HOME/nix-config"
-    elif [ -d /etc/nixos ]; then
-      CONFIG_DIR="/etc/nixos"
-    else
-      echo "Error: Could not find nix-config directory"
-      exit 1
-    fi
-
-    cd "$CONFIG_DIR"
-    exec ${pkgs.bash}/bin/bash "$CONFIG_DIR/rebuild.sh" "$@"
-  '';
-in
-
 {
   imports = [
     ../../options.nix
+    ../../modules/common
     ../../modules/networking/tailscale.nix
   ];
 
@@ -41,27 +23,17 @@ in
 
   nix.enable = false;
 
-  nix.settings = {
-    experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
-    trusted-users = [
-      "root"
-      "gamzat"
-    ];
-  };
-
-  nixpkgs.config.allowUnfree = true;
+  nix.settings.trusted-users = [
+    "root"
+    "gamzat"
+  ];
 
   system.primaryUser = "gamzat";
 
   environment.systemPackages = with pkgs; [
+    # General utilities — useful for sudo workflows; dev tooling is installed at user level
     git
     neovim
-    nodejs
-    typescript
-    python3
     wget
     curl
     htop
@@ -70,19 +42,6 @@ in
     fzf
     jq
     tmux
-    lua-language-server
-    nil
-    typescript-language-server
-    rust-analyzer
-    clang-tools
-    vscode-langservers-extracted
-    claude-code
-    gemini-cli
-    bun
-    opencode
-
-    # bash scripts
-    rebuild-script
   ];
 
   system.stateVersion = 5;
