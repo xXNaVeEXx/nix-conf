@@ -8,6 +8,11 @@
 }:
 
 {
+  imports = [
+    ./modules/dotfiles-base.nix
+    ./modules/tmux.nix
+  ];
+
   home.stateVersion = "25.11";
   home.username = "gamzat";
   home.homeDirectory = "/Users/gamzat";
@@ -17,23 +22,9 @@
     defaultEditor = true;
   };
 
-  home.file.".config/nvim" = {
-    source = "${dotfiles}/nvim";
-    recursive = true;
-  };
-
-  # Zsh mit deinen Dotfiles
-  home.file.".zshrc" = {
-    source = "${dotfiles}/zsh/.zshrc";
-  };
-
   home.file.".config/.kube" = {
     source = "${dotfiles}/.kube";
     recursive = true;
-  };
-
-  home.file.".p10k.zsh" = {
-    source = "${dotfiles}/zsh/.p10k.zsh";
   };
 
   programs.git = {
@@ -114,25 +105,6 @@
     source = "${dotfiles}/wezterm";
     recursive = true;
   };
-
-  # Tmux configuration from dotfiles
-  home.file.".tmux.conf" = {
-    source = "${dotfiles}/tmux/.tmux.conf";
-  };
-
-  # Install TPM (Tmux Plugin Manager)
-  home.file.".tmux/plugins/tpm" = {
-    source = pkgs.fetchFromGitHub {
-      owner = "tmux-plugins";
-      repo = "tpm";
-      rev = "v3.1.0";
-      sha256 = "sha256-CeI9Wq6tHqV68woE11lIY4cLoNY8XWyXyMHTDmFKJKI=";
-    };
-    recursive = true;
-  };
-
-  # Create .config/zsh directory for history file
-  home.file.".config/zsh/.keep".text = "";
 
   # sops-nix home-manager configuration
   sops = {

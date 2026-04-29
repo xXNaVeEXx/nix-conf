@@ -7,28 +7,15 @@
 }:
 
 let
-  # Create rebuild script that can be run from anywhere
-  rebuild-script = pkgs.writeScriptBin "rebuild" ''
-    #!/usr/bin/env bash
-
-    # Find nix-config directory
-    if [ -d "$HOME/projects/nix-conf" ]; then
-      CONFIG_DIR="$HOME/projects/nix-conf"
-    elif [ -d "$HOME/nix-config" ]; then
-      CONFIG_DIR="$HOME/nix-config"
-    elif [ -d /etc/nixos ]; then
-      CONFIG_DIR="/etc/nixos"
-    else
-      echo "Error: Could not find nix-config directory"
-      exit 1
-    fi
-
-    cd "$CONFIG_DIR"
-    exec ${pkgs.bash}/bin/bash "$CONFIG_DIR/rebuild.sh" "$@"
-  '';
+  rebuild-script = import ../lib/rebuild-script.nix { inherit pkgs; };
 in
 
 {
+  imports = [
+    ./modules/dotfiles-base.nix
+    ./modules/tmux.nix
+  ];
+
   home.username = "maga";
   home.homeDirectory = "/home/maga";
   home.stateVersion = "25.11";
@@ -51,19 +38,6 @@ in
       init.defaultBranch = "main";
       pull.rebase = true;
     };
-  };
-
-  home.file.".config/nvim" = {
-    source = "${dotfiles}/nvim";
-    recursive = true;
-  };
-
-  home.file.".p10k.zsh" = {
-    source = "${dotfiles}/zsh/.p10k.zsh";
-  };
-
-  home.file.".zshrc" = {
-    source = "${dotfiles}/zsh/.zshrc";
   };
 
   programs.bash.enable = true;
@@ -124,25 +98,6 @@ in
     source = "${dotfiles}/wezterm";
     recursive = true;
   };
-
-  # Tmux configuration from dotfiles
-  home.file.".tmux.conf" = {
-    source = "${dotfiles}/tmux/.tmux.conf";
-  };
-
-  # Install TPM (Tmux Plugin Manager)
-  home.file.".tmux/plugins/tpm" = {
-    source = pkgs.fetchFromGitHub {
-      owner = "tmux-plugins";
-      repo = "tpm";
-      rev = "v3.1.0";
-      sha256 = "sha256-CeI9Wq6tHqV68woE11lIY4cLoNY8XWyXyMHTDmFKJKI=";
-    };
-    recursive = true;
-  };
-
-  # Create .config/zsh directory for history file
-  home.file.".config/zsh/.keep".text = "";
 
   programs.ssh = {
     enable = true;
