@@ -92,6 +92,23 @@ in
     tmux
     lazygit
     nerd-fonts.gohufont
+    ripgrep
+    fzf
+
+    #LSP
+    clang
+    nodejs
+    unzip
+    cargo
+    rustc
+    dioxus-cli
+    # LSP Server direkt installieren
+    lua-language-server
+    nil # Nix LSP
+    typescript-language-server
+    rust-analyzer
+    clang-tools # clangd für C/C++
+    vscode-langservers-extracted # JSON, HTML, CSS LSPs
 
     # Applications
     bitwarden-desktop
