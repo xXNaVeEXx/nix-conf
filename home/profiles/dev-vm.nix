@@ -7,11 +7,14 @@ in
 {
   imports = [ ./desktop-apps.nix ];
 
-  myHome.dev.enable = true;
+  myHome = {
+    dev.enable = true;
+    kube.enable = true;
+  };
 
   home.packages = with pkgs; [
-    git
     ripgrep
+    kubectl
     libsForQt5.qt5.qtdeclarative # QML
     claude-code
     opencode
