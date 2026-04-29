@@ -12,131 +12,41 @@ let
 in
 
 {
-  imports = [
-    ./modules/dotfiles-base.nix
-    ./modules/tmux.nix
-  ];
+  imports = [ ./modules ];
 
   home.stateVersion = "25.11";
 
-  # Wayland environment variables
   home.sessionVariables = {
     XDG_RUNTIME_DIR = "/run/user/1000";
     WAYLAND_DISPLAY = "wayland-0";
   };
 
-  programs.neovim = {
-    enable = true;
-    defaultEditor = true;
-  };
-
-  programs.git = {
-    enable = true;
-    settings = {
-      user = {
-        name = "Gamzat";
-        email = "mukailov.g@gmail.com";
-      };
-      init.defaultBranch = "main";
-      pull.rebase = true;
+  myHome = {
+    identity = {
+      name = "Gamzat";
+      email = "mukailov.g@gmail.com";
+      sshKey = "~/.ssh/mydevkey";
     };
+    sops = {
+      enable = true;
+      ageKeyFile = "/home/gamzat/.config/sops/age/key.txt";
+    };
+    apps = {
+      bitwarden = osConfig.mySystem.passwordManager.bitwarden;
+      wezterm = osConfig.mySystem.terminal.wezterm;
+      moonlight = osConfig.mySystem.streaming.moonlight;
+      clipboard = osConfig.mySystem.clipboard.copyq;
+    };
+    kube.enable = true;
   };
 
-  home.file.".config/.kube" = {
-    source = "${dotfiles}/.kube";
-    recursive = true;
-  };
+  home.packages = with pkgs; [
+    opencloud-desktop
+  ];
 
-  programs.bash.enable = true;
-
-  programs.fzf = {
-    enable = true;
-    enableZshIntegration = false; # Manual integration in .zshrc
-  };
-
-  programs.zoxide = {
-    enable = true;
-    enableZshIntegration = false; # Manual integration in .zshrc
-  };
-
-  # zsh is managed manually via dotfiles
-  home.packages =
-    with pkgs;
-    [
-      zsh
-      bat
-      eza
-      tmux
-      lazygit
-      nerd-fonts.gohufont
-
-      sops
-      age
-
-      opencloud-desktop
-
-    ]
-    ++ lib.optionals osConfig.mySystem.passwordManager.bitwarden [
-      bitwarden-desktop
-      bitwarden-cli
-    ]
-    ++ lib.optionals osConfig.mySystem.terminal.wezterm [
-      wezterm
-    ]
-    ++ lib.optionals osConfig.mySystem.streaming.moonlight [
-      moonlight-qt
-    ]
-    ++ lib.optionals osConfig.mySystem.clipboard.copyq [
-      copyq
-    ];
-
-  # Wezterm configuration from dotfiles
-  home.file.".config/wezterm" = lib.mkIf osConfig.mySystem.terminal.wezterm {
-    source = "${dotfiles}/wezterm";
-    recursive = true;
-  };
-
-  # sops-nix home-manager configuration
-  sops = {
-    age.keyFile = "/home/gamzat/.config/sops/age/key.txt";
-    defaultSopsFile = ../../secrets/secrets.yaml;
-
-    # Example secrets - uncomment and customize as needed
-    # secrets.example-key = {
-    #   path = "%r/example-secret";
-    # };
-  };
-
-  # sops configuration for manual encryption/decryption
-  home.file.".config/sops/.sops.yaml".text = ''
-    keys:
-      - &admin_key age14pdqf7sl4sltz442mvfyafchvxn5wvv988gv6enhhrmyx3ch5qfs5y6atl
-
-    creation_rules:
-      # Kubernetes configs
-      - path_regex: \.kube/.*
-        age: *admin_key
-
-      # All other files
-      - path_regex: .*
-        age: *admin_key
-  '';
-
-  # Quickshell configuration for MangoWC
+  # Quickshell config — only when MangoWC compositor is the active session
   home.file.".config/quickshell" = lib.mkIf osConfig.mySystem.desktop.mangowc {
     source = quickshellConfigDir;
     recursive = true;
-  };
-
-  programs.ssh = {
-    enable = true;
-    enableDefaultConfig = false;
-    matchBlocks = {
-      "github.com" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/mydevkey";
-      };
-    };
   };
 }
