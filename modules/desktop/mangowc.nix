@@ -8,26 +8,13 @@
 }:
 
 let
-  # Wallpaper images - theme switcher
+  # Wallpaper images — vendored under configs/wallpapers/ so builds don't depend
+  # on remote URLs (Unsplash/wallpaperflare links rot).
   wallpapers = {
-    cyberpunk = pkgs.fetchurl {
-      url = "https://images.unsplash.com/photo-1517154421773-0529f29ea451?q=80&w=3270&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
-      sha256 = "0km2dyifda53fwg592z701kf68hwa8fgin1yl2x351vgpmx8g4gn";
-      name = "cyberpunk-wallpaper.jpg";
-    };
-    sunset = pkgs.fetchurl {
-      url = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=3270&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
-      sha256 = "14ysd780873dmmbmrprn032lwpj4mx55brdb134fadfjdmdl610f";
-      name = "sunset-wallpaper.jpg";
-    };
-    tokyo = pkgs.fetchurl {
-      url = "https://r4.wallpaperflare.com/wallpaper/836/414/353/city-urban-street-asia-wallpaper-424152f0ad06deeb4af8a21540e80962.jpg";
-      sha256 = "0nn420z0kbw6zl1rj2ky6412ghh8zn95j8j0mipsvl2xxi260jc7";
-    };
-    future = pkgs.fetchurl {
-      url = "https://r4.wallpaperflare.com/wallpaper/506/679/697/city-futuristic-digital-art-cheng-yu-wallpaper-86257bc769cf2ab70d65ac7d1b5c2384.jpg";
-      sha256 = "1qwphcgdj8m39757nj6y3ph7x3b5jbgg4v8yas5piqs2c2scqdim";
-    };
+    cyberpunk = ./configs/wallpapers/cyberpunk.jpg;
+    sunset = ./configs/wallpapers/sunset.jpg;
+    tokyo = ./configs/wallpapers/tokyo.jpg;
+    future = ./configs/wallpapers/future.jpg;
   };
 
   # Current theme (default: cyberpunk)
