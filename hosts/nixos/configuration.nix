@@ -27,10 +27,11 @@ in
   system.autoUpgrade.enable = true;
   system.autoUpgrade.dates = "weekly";
 
-  # Automatic cleanup
+  # Automatic cleanup. Keep 30d of generations so a bad weekly
+  # auto-upgrade still has rollback room.
   nix.gc.automatic = true;
-  nix.gc.dates = "daily";
-  nix.gc.options = "--delete-older-than 3d";
+  nix.gc.dates = "weekly";
+  nix.gc.options = "--delete-older-than 30d";
   nix.settings.auto-optimise-store = true;
 
   imports = [
