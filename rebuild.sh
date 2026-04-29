@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-# Farben für Output
+# Output colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# System Detection
+# System detection
 detect_system() {
     # Detect the actual user (handle sudo case)
     if [[ -n "$SUDO_USER" ]]; then
@@ -43,7 +43,7 @@ detect_system() {
     fi
 }
 
-# Funktionen
+# Output helpers
 print_header() {
     echo -e "${BLUE}================================${NC}"
     echo -e "${BLUE}$1${NC}"
@@ -62,7 +62,6 @@ print_warning() {
     echo -e "${YELLOW}⚠ $1${NC}"
 }
 
-# Hilfe anzeigen
 show_help() {
     cat << EOF
 Nix Rebuild Script (NixOS & macOS)
@@ -72,56 +71,56 @@ Usage: $0 [OPTION]
 Detected System: $SYSTEM_TYPE
 Hostname: $HOSTNAME
 
-Optionen:
-  switch              System bauen und aktivieren (default)
-  update              Alle Flake-Inputs updaten
-  update-dotfiles     Nur Dotfiles updaten
-  full                Update + Switch (alles updaten und bauen)
-  test                System bauen aber nicht aktivieren (nur NixOS)
-  boot                Für nächsten Boot vorbereiten (nur NixOS)
-  check               Flake auf Fehler prüfen
-  clean               Alte Generationen aufräumen
-  help                Diese Hilfe anzeigen
+Options:
+  switch              Build and activate the system (default)
+  update              Update all flake inputs
+  update-dotfiles     Update only the dotfiles input
+  full                Update + switch (update everything and rebuild)
+  test                Build the system without activating (NixOS only)
+  boot                Stage the build for next boot (NixOS only)
+  check               Validate the flake
+  clean               Prune old generations
+  help                Show this help
 
-Beispiele:
-  $0                  # Standard: switch
-  $0 full             # Alles updaten und bauen
-  $0 update-dotfiles  # Nur dotfiles aktualisieren
+Examples:
+  $0                  # Default: switch
+  $0 full             # Update everything and rebuild
+  $0 update-dotfiles  # Update dotfiles only
 EOF
 }
 
-# Prüfe ob wir im richtigen Verzeichnis sind
+# Verify we're in the right directory
 check_directory() {
     if [[ ! -f "flake.nix" ]]; then
-        print_error "flake.nix nicht gefunden!"
-        echo "Bitte führe das Script im nix-config Verzeichnis aus."
+        print_error "flake.nix not found!"
+        echo "Please run this script from the nix-config directory."
         exit 1
     fi
 }
 
-# Prüfe ob Nix installiert ist (für home-manager Systeme)
+# Verify Nix is installed (for home-manager systems)
 check_nix_installed() {
     if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
         if ! command -v nix &> /dev/null; then
-            print_error "Nix ist nicht installiert!"
+            print_error "Nix is not installed!"
             echo ""
-            print_warning "Für CachyOS und andere nicht-NixOS Systeme muss Nix zuerst installiert werden."
+            print_warning "On CachyOS and other non-NixOS systems Nix must be installed first."
             echo ""
-            echo "Führe das Installations-Script aus:"
+            echo "Run the install script:"
             echo -e "${GREEN}  ./install-nix-home-manager.sh${NC}"
             echo ""
-            echo "Oder installiere Nix manuell:"
+            echo "Or install Nix manually:"
             echo -e "${GREEN}  sh <(curl -L https://nixos.org/nix/install) --daemon${NC}"
             exit 1
         fi
     fi
 }
 
-# Git Status prüfen
+# Check git status before destructive operations
 check_git_status() {
     if [[ -n $(git status --porcelain) ]]; then
-        print_warning "Git tree ist dirty (uncommitted changes)"
-        read -p "Trotzdem fortfahren? (y/n) " -n 1 -r
+        print_warning "Git tree is dirty (uncommitted changes)"
+        read -p "Continue anyway? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
@@ -129,126 +128,126 @@ check_git_status() {
     fi
 }
 
-# System bauen
+# Build and activate
 do_switch() {
-    print_header "System wird gebaut und aktiviert..."
+    print_header "Building and activating system..."
     if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
         # home-manager doesn't need sudo, use -b backup to backup existing files
         if $REBUILD_CMD switch --flake .#$HOSTNAME -b backup; then
-            print_success "Home-Manager Konfiguration erfolgreich aktiviert!"
+            print_success "Home Manager configuration activated!"
         else
-            print_error "Build fehlgeschlagen!"
+            print_error "Build failed!"
             exit 1
         fi
     else
         if sudo $REBUILD_CMD switch --flake .#$HOSTNAME; then
-            print_success "System erfolgreich gebaut!"
+            print_success "System built and activated!"
         else
-            print_error "Build fehlgeschlagen!"
+            print_error "Build failed!"
             exit 1
         fi
     fi
 }
 
-# Test build (ohne Aktivierung)
+# Test build (without activation)
 do_test() {
     if [[ "$SYSTEM_TYPE" != "nixos" ]]; then
-        print_error "'test' ist nur für NixOS verfügbar"
+        print_error "'test' is only available on NixOS"
         exit 1
     fi
 
-    print_header "System wird getestet (ohne Aktivierung)..."
+    print_header "Testing build (no activation)..."
     if sudo $REBUILD_CMD test --flake .#$HOSTNAME; then
-        print_success "Test erfolgreich!"
+        print_success "Test build succeeded!"
     else
-        print_error "Test fehlgeschlagen!"
+        print_error "Test build failed!"
         exit 1
     fi
 }
 
-# Boot build
+# Boot build (stage for next boot)
 do_boot() {
     if [[ "$SYSTEM_TYPE" != "nixos" ]]; then
-        print_error "'boot' ist nur für NixOS verfügbar"
+        print_error "'boot' is only available on NixOS"
         exit 1
     fi
 
-    print_header "System für nächsten Boot vorbereiten..."
+    print_header "Staging build for next boot..."
     if sudo $REBUILD_CMD boot --flake .#$HOSTNAME; then
-        print_success "Boot-Konfiguration erstellt!"
+        print_success "Boot configuration staged!"
     else
-        print_error "Boot-Build fehlgeschlagen!"
+        print_error "Boot build failed!"
         exit 1
     fi
 }
 
-# Alle Inputs updaten
+# Update all flake inputs
 do_update() {
-    print_header "Alle Flake-Inputs werden aktualisiert..."
+    print_header "Updating all flake inputs..."
     if nix flake update; then
-        print_success "Flake-Inputs aktualisiert!"
+        print_success "Flake inputs updated!"
         echo ""
         nix flake metadata | grep -A 10 "Inputs:"
     else
-        print_error "Update fehlgeschlagen!"
+        print_error "Update failed!"
         exit 1
     fi
 }
 
-# Nur Dotfiles updaten
+# Update only the dotfiles input
 do_update_dotfiles() {
-    print_header "Dotfiles werden aktualisiert..."
+    print_header "Updating dotfiles input..."
     if nix flake lock --update-input dotfiles; then
-        print_success "Dotfiles aktualisiert!"
+        print_success "Dotfiles updated!"
         nix flake metadata | grep -A 1 "dotfiles"
     else
-        print_error "Dotfiles-Update fehlgeschlagen!"
+        print_error "Dotfiles update failed!"
         exit 1
     fi
 }
 
-# Flake checken
+# Validate flake
 do_check() {
-    print_header "Flake wird geprüft..."
+    print_header "Checking flake..."
     if nix flake check; then
-        print_success "Flake ist valide!"
+        print_success "Flake is valid!"
     else
-        print_error "Flake-Check fehlgeschlagen!"
+        print_error "Flake check failed!"
         exit 1
     fi
 }
 
-# Alte Generationen aufräumen
+# Prune old generations
 do_clean() {
-    print_header "Alte Generationen werden angezeigt..."
+    print_header "Listing generations..."
 
     if [[ "$SYSTEM_TYPE" == "cachyos" ]] || [[ "$SYSTEM_TYPE" == "linux" ]]; then
         # home-manager generations
         home-manager generations
         echo ""
-        read -p "Generationen älter als X Tage löschen (z.B. 30): " days
+        read -p "Delete generations older than X days (e.g. 30): " days
 
         if [[ $days =~ ^[0-9]+$ ]]; then
-            print_header "Lösche Generationen älter als $days Tage..."
+            print_header "Deleting generations older than $days days..."
             home-manager expire-generations "-${days} days"
             nix-collect-garbage -d
-            print_success "Aufräumen abgeschlossen!"
+            print_success "Cleanup complete!"
         else
-            print_error "Ungültige Eingabe!"
+            print_error "Invalid input!"
             exit 1
         fi
     else
         sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
         echo ""
-        read -p "Wie viele Generationen behalten? (z.B. 5): " keep
+        read -p "How many generations to keep? (e.g. 5): " keep
 
         if [[ $keep =~ ^[0-9]+$ ]]; then
-            print_header "Lösche alte Generationen (behalte letzte $keep)..."
+            print_header "Deleting old generations (keeping last $keep)..."
             sudo nix-env --delete-generations +$keep --profile /nix/var/nix/profiles/system
             sudo nix-collect-garbage -d
-            print_success "Aufräumen abgeschlossen!"
+            print_success "Cleanup complete!"
         else
-            print_error "Ungültige Eingabe!"
+            print_error "Invalid input!"
             exit 1
         fi
     fi
@@ -302,7 +301,7 @@ main() {
             show_help
             ;;
         *)
-            print_error "Unbekannte Option: $1"
+            print_error "Unknown option: $1"
             echo ""
             show_help
             exit 1
