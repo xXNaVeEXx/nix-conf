@@ -1,17 +1,10 @@
-{
-  config,
-  pkgs,
-  lib,
-  dotfiles,
-  ...
-}:
-
-let
-  rebuild-script = import ../lib/rebuild-script.nix { inherit pkgs; };
-in
+{ ... }:
 
 {
-  imports = [ ./modules ];
+  imports = [
+    ./modules
+    ./profiles/dev-vm.nix
+  ];
 
   home.username = "maga";
   home.homeDirectory = "/home/maga";
@@ -19,28 +12,9 @@ in
 
   programs.home-manager.enable = true;
 
-  myHome = {
-    identity = {
-      name = "Magram";
-      email = "magramzijaev@gmail.com";
-      sshKey = "~/.ssh/id_ed25519";
-    };
-    dev.enable = true;
-    apps = {
-      bitwarden = true;
-      wezterm = true;
-      moonlight = true;
-      clipboard = true;
-    };
+  myHome.identity = {
+    name = "Magram";
+    email = "magramzijaev@gmail.com";
+    sshKey = "~/.ssh/id_ed25519";
   };
-
-  # Per-machine extras
-  home.packages = with pkgs; [
-    git
-    ripgrep
-    libsForQt5.qt5.qtdeclarative # QML
-    claude-code
-    opencode
-    rebuild-script
-  ];
 }

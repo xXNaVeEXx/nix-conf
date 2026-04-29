@@ -48,8 +48,24 @@
       quickshell,
       sops-nix,
     }:
+    let
+      mkHomeLinux =
+        module:
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { inherit dotfiles sops-nix; };
+          modules = [
+            module
+            { nixpkgs.config.allowUnfree = true; }
+            sops-nix.homeManagerModules.sops
+          ];
+        };
+
+      # Aliased entries — the .nix module is shared by multiple host attribute names
+      cachyHome = mkHomeLinux ./home/gamzat-cachyos.nix;
+      sharedHome = mkHomeLinux ./home/gamzat-shared.nix;
+    in
     {
-      # NixOS Configuration
       nixosConfigurations = {
         nixos = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
@@ -73,7 +89,6 @@
         };
       };
 
-      # macOS Configuration
       darwinConfigurations = {
         macbookpro = darwin.lib.darwinSystem {
           system = "aarch64-darwin";
@@ -95,72 +110,14 @@
         };
       };
 
-      # Standalone Home Manager Configuration (for CachyOS and other non-NixOS systems)
+      # Standalone Home Manager (non-NixOS Linux: CachyOS, dev VMs, etc.)
       homeConfigurations = {
-        "gamzat@cachyos" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/gamzat-cachyos.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
-        "gamzat@cachydeck" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/gamzat-cachyos.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
-        # Shared configuration for gamzat-dev and other systems
-        "gamzat@shared" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/gamzat-shared.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
-        # Configuration for gamzat-dev hostname
-        "gamzat@gamzat-dev" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/gamzat-shared.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
-        # Configuration for maga-dev hostname
-        "maga@maga-dev" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/maga-dev.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
-        # Configuration for marv-dev hostname
-        "marv@marv-dev" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
-          modules = [
-            ./home/marv-dev.nix
-            { nixpkgs.config.allowUnfree = true; }
-            sops-nix.homeManagerModules.sops
-          ];
-        };
-
+        "gamzat@cachyos" = cachyHome;
+        "gamzat@cachydeck" = cachyHome;
+        "gamzat@shared" = sharedHome;
+        "gamzat@gamzat-dev" = sharedHome;
+        "maga@maga-dev" = mkHomeLinux ./home/maga-dev.nix;
+        "marv@marv-dev" = mkHomeLinux ./home/marv-dev.nix;
       };
     };
 }

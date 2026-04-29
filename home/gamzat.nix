@@ -1,8 +1,6 @@
 {
-  config,
   pkgs,
   lib,
-  dotfiles,
   osConfig,
   ...
 }:
@@ -12,7 +10,11 @@ let
 in
 
 {
-  imports = [ ./modules ];
+  imports = [
+    ./modules
+    ./identities/gamzat.nix
+    ./profiles/from-os-config.nix
+  ];
 
   home.stateVersion = "25.11";
 
@@ -21,24 +23,7 @@ in
     WAYLAND_DISPLAY = "wayland-0";
   };
 
-  myHome = {
-    identity = {
-      name = "Gamzat";
-      email = "mukailov.g@gmail.com";
-      sshKey = "~/.ssh/mydevkey";
-    };
-    sops = {
-      enable = true;
-      ageKeyFile = "/home/gamzat/.config/sops/age/key.txt";
-    };
-    apps = {
-      bitwarden = osConfig.mySystem.passwordManager.bitwarden;
-      wezterm = osConfig.mySystem.terminal.wezterm;
-      moonlight = osConfig.mySystem.streaming.moonlight;
-      clipboard = osConfig.mySystem.clipboard.copyq;
-    };
-    kube.enable = true;
-  };
+  myHome.kube.enable = true;
 
   home.packages = with pkgs; [
     opencloud-desktop
