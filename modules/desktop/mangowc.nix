@@ -144,9 +144,18 @@ let
     "${quickshell.packages.${pkgs.system}.default}/bin/quickshell"
   '';
 
+  dioxusShellPkg = pkgs.callPackage ../../pkgs/dioxus-shell { };
+
+  dioxusShellLauncher = pkgs.writeShellScript "dioxus-shell-launcher" ''
+    #!${pkgs.bash}/bin/bash
+    exec "${dioxusShellPkg}/bin/dioxus-shell"
+  '';
+
   # Determine which bar to use
   barCommand =
-    if config.mySystem.desktop.bar == "quickshell" then "''${quickshellLauncher}" else "waybar";
+    if config.mySystem.desktop.bar == "dioxus" then "${dioxusShellLauncher}"
+    else if config.mySystem.desktop.bar == "quickshell" then "${quickshellLauncher}"
+    else "waybar";
 
   # Optional wayvnc exec-once line
   wayvncExecOnce =
@@ -480,7 +489,9 @@ in
       ]
       ++ (
         # Conditionally add bar based on user preference
-        if config.mySystem.desktop.bar == "quickshell" then
+        if config.mySystem.desktop.bar == "dioxus" then
+          [ dioxusShellPkg ]
+        else if config.mySystem.desktop.bar == "quickshell" then
           [ quickshell.packages.${pkgs.system}.default ]
         else
           [ waybar ]

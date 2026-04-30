@@ -1,2 +1,6 @@
 /secrets
 secrets/
+
+# Nix build symlinks
+/result
+/result-*

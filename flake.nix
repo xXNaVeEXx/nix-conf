@@ -117,5 +117,8 @@
         "maga@maga-dev" = mkHomeLinux ./home/maga-dev.nix;
         "marv@marv-dev" = mkHomeLinux ./home/marv-dev.nix;
       };
+
+      packages.x86_64-linux.dioxus-shell =
+        nixpkgs.legacyPackages.x86_64-linux.callPackage ./pkgs/dioxus-shell { };
     };
 }

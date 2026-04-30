@@ -1,0 +1,40 @@
+[package]
+name = "dioxus-shell"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "dioxus-shell"
+path = "src/main.rs"
+
+[dependencies]
+smithay-client-toolkit = "0.19"
+wayland-client = { version = "0.31", features = ["log"] }
+wayland-backend = { version = "0.3", features = ["client_system"] }
+raw-window-handle = "0.6"
+wgpu = { version = "=28", default-features = false, features = ["wgsl", "vulkan"] }
+vello = { version = "0.8", features = ["wgpu"] }
+blitz-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false, features = ["system_fonts"] }
+blitz-paint = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false }
+blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false }
+dioxus-native-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false, features = ["system-fonts"] }
+anyrender_vello = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
+dioxus-core = "0.7.3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+pollster = "0.4"
+log = "0.4"
+env_logger = "0.11"
+anyhow = "1"
+
+[patch.crates-io]
+# Force shared crates to resolve from a single source so the cargo-vendor-dir
+# builder doesn't collide on duplicate (crate, version) entries with different
+# sources (registry vs git). Pinning each multi-source crate to the git copy.
+debug_timer = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64" }
+anyrender = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

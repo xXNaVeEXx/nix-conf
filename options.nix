@@ -9,9 +9,9 @@
       mangowc = lib.mkEnableOption "MangoWC Wayland compositor with Quickshell";
 
       bar = lib.mkOption {
-        type = lib.types.enum [ "waybar" "quickshell" ];
+        type = lib.types.enum [ "waybar" "quickshell" "dioxus" ];
         default = "waybar";
-        description = "Status bar to use (waybar or quickshell)";
+        description = "Status bar to use (waybar, quickshell, or dioxus — dioxus is experimental)";
       };
     };
     gaming = {

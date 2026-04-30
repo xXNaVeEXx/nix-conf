@@ -52,7 +52,7 @@ config = lib.mkIf config.mySystem.<area>.<feature> { ... };
 
 `hosts/nixos/configuration.nix` and `hosts/macbookpro/configuration.nix` import `options.nix` + the relevant modules and set the flags. **To add a new system-level feature: declare the option in `options.nix`, gate its module with `lib.mkIf`, and turn it on in the host config.** Don't add unconditional config to a feature module — it breaks the multi-host model.
 
-`mySystem.desktop.bar` (`"waybar" | "quickshell"`) picks which status bar the desktop modules wire up.
+`mySystem.desktop.bar` (`"waybar" | "quickshell" | "dioxus"`) picks which status bar the desktop modules wire up. `"dioxus"` is experimental — see `pkgs/dioxus-shell/PROJECT.md` for the in-progress port that's replacing Quickshell.
 
 ### `myHome.*` (home-manager layer)
 
@@ -105,6 +105,12 @@ When adding a new flake input that a module needs: (a) add to the input set, (b)
 ### Hosts and root-level symlinks
 
 `configuration.nix` and `hardware-configuration.nix` at the repo root are symlinks into `hosts/nixos/`. Don't replace them with regular files — the symlinks let `/etc/nixos -> this repo` work for the system auto-upgrade path (`system.autoUpgrade.enable = true` in `hosts/nixos/configuration.nix`).
+
+### `pkgs/dioxus-shell/` — in-progress Quickshell replacement
+
+A Rust desktop shell for MangoWC, built with `smithay-client-toolkit` + `wgpu` (with Dioxus + Blitz + Vello layered on top, in progress). Lives inline at `pkgs/dioxus-shell/` and exposed as `packages.x86_64-linux.dioxus-shell` from `flake.nix`. Wired into `modules/desktop/mangowc.nix` as the third `bar` enum value alongside `waybar`/`quickshell`. Default is still `"waybar"` — nothing on the live desktop changes until someone explicitly opts in.
+
+**Read `pkgs/dioxus-shell/PROJECT.md` before touching this code.** It's the canonical state-of-the-port doc: what's done, what's next, the wgpu/vello/blitz version pins, why we're not using `dioxus-native`/`anyrender_vello`/`blitz-renderer-vello`, and the full integration recipe for the next milestone (clock widget). The original plan is at `/root/.claude/plans/can-we-change-from-inherited-sun.md` for context on goals and effort estimates.
 
 ### Wallpapers and runtime configs
 
