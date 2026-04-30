@@ -18,7 +18,9 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 **Dioxus + Blitz integration milestone: complete.** `src/ui/mod.rs` builds a `VirtualDom` + `DioxusDocument` + `DEFAULT_CSS` + custom flexbox stylesheet, runs `initial_build()`, and per-frame calls `inner.resolve(now_secs)` + `blitz_paint::paint_scene(VelloScenePainter, doc, ...)` to populate a `vello::Scene`. The renderer hands the resulting scene to `vello::Renderer::render_to_texture`. First widget: a 32px bar with "dioxus-shell" on the left and `HH:MM:SS` on the right, both styled via `<style>` block embedded in the rsx. Verified visually.
 
-**Next milestone: per-frame redraw loop.** Currently the bar paints once on `configure` and never again — the clock shows the startup time forever. Need to wire `wl_surface::frame` callbacks so the bar repaints once per second (or whenever the Dioxus VDOM diff changes the rendered output). Recipe in [§ The next milestone](#the-next-milestone--per-frame-redraw-loop) below.
+**Reactive redraw loop milestone: complete.** A `tokio::runtime::Builder::new_current_thread().enable_time()` runtime drives `use_future` hooks. `Ui::poll()` enters the runtime, `block_on(yield_now())` to advance pending tasks, then calls `DioxusDocument::poll(cx)` with a `DirtyWaker` that flips an atomic flag when any Dioxus signal fires. The clock is implemented as a `Signal<String>` updated every second by a `tokio::time::interval`. The Wayland event loop was rewritten on top of `calloop::EventLoop` with `WaylandSource` + a 100ms `Timer` that drives `Ui::poll()` and re-renders only when the dirty flag was set. Idle CPU on llvmpipe-on-Proxmox is ~4% (down from ~13% in the unconditional 60Hz draft). Verified visually: the clock ticks every second.
+
+**Next milestone: a real second widget.** The clock proves the integration; now we need something with non-trivial state to validate the architecture under load. Candidates from the Quickshell port-table in this file: tag indicators (poll `mangoctl get-active-tag`), window title (poll `mangoctl get-active-window-title`), or wlan status (parse `nmcli -t`). All three exercise the same shape — a `use_future` running an external command on an interval, setting a signal, Dioxus diffing the rsx output, Blitz re-laying out, Vello re-painting only the changed regions (well — the whole bar; per-rect damage is later).
 
 `mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate.
 
@@ -123,7 +125,8 @@ dioxus-core = "0.7.3"
 
 ```
 pkgs/dioxus-shell/
-├── Cargo.toml                  — wgpu=28, sctk=0.19, full Dioxus/Blitz/Vello stack
+├── Cargo.toml                  — wgpu=28, sctk=0.19, full Dioxus/Blitz/Vello stack,
+│                                 tokio (rt+time+macros+sync), calloop, calloop-wayland-source
 ├── Cargo.lock
 ├── default.nix                 — buildRustPackage + wrapProgram + python3 (for stylo)
 ├── PROJECT.md                  — this file
@@ -131,70 +134,88 @@ pkgs/dioxus-shell/
     ├── main.rs                 — entry: env_logger init, Shell::new()?.run()
     ├── wayland/
     │   ├── mod.rs              — pub use shell::Shell
-    │   ├── shell.rs            — SCTK Shell + State; CompositorHandler, OutputHandler,
-    │   │                         LayerShellHandler, ProvidesRegistryState. Hardcodes
-    │   │                         BAR_HEIGHT=32, Layer::Top, anchor TOP|LEFT|RIGHT.
-    │   │                         OutputHandler::new_output creates one bar per output;
-    │   │                         the explicit roundtrip-then-iterate loop was removed
-    │   │                         after it caused duplicate bars (every output got two).
-    │   └── surface.rs          — BarSurface: owns LayerSurface + Renderer; configure()
-    │                             initializes renderer on first call, resizes on later calls.
-    │                             output() returns None — TODO: side-table for multi-monitor.
+    │   ├── shell.rs            — calloop::EventLoop driven shell. WaylandSource handles
+    │   │                         all wayland events; a 100ms Timer drives Ui::poll() on
+    │   │                         each bar via State::tick(). frame() callback is now a
+    │   │                         no-op — calloop is the heartbeat. State holds qh so
+    │   │                         tick can pass it through.
+    │   └── surface.rs          — BarSurface: owns LayerSurface + Renderer. configure()
+    │                             initializes renderer on first call, resizes on later
+    │                             calls, paints once. tick() called from calloop timer:
+    │                             renderer.tick() → if it painted, commit. output()
+    │                             returns None — TODO: side-table for multi-monitor.
     ├── ui/
-    │   └── mod.rs              — Ui struct: holds DioxusDocument + width/height. paint(scene,
-    │                             now_secs) calls resolve() then paint_scene(). app() returns
-    │                             rsx with embedded <style> for layout. Uses dioxus::prelude
-    │                             (umbrella crate, NOT dioxus_core directly — rsx! macro lives
-    │                             in dioxus_core_macro re-exported through dioxus).
+    │   └── mod.rs              — Ui struct: tokio current-thread runtime + DioxusDocument
+    │                             + DirtyFlag waker. Ui::new() enters runtime to build
+    │                             the VirtualDom (so use_future can spawn). poll() enters
+    │                             runtime, runs block_on(yield_now()) to advance tokio
+    │                             timers, then doc.poll(cx) to drive Dioxus. paint(scene,
+    │                             now_secs) emits the painted document into a vello::Scene
+    │                             via VelloScenePainter. app() uses use_future to update a
+    │                             clock Signal every second. Uses dioxus::prelude (umbrella
+    │                             crate; rsx! lives in dioxus-core-macro, re-exported).
     └── render/
         ├── mod.rs              — pub use renderer::Renderer
-        └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate Rgba8Unorm
-                                  texture (STORAGE_BINDING|TEXTURE_BINDING), TextureBlitter,
-                                  and a Ui. render() calls ui.paint(&mut scene, elapsed_secs)
-                                  → vello.render_to_texture(intermediate) → blitter.copy
-                                  (intermediate → swapchain) → present. Surface format is
-                                  non-sRGB (vello applies its own gamma).
-                                  RawWaylandTarget bridges SCTK pointers to raw-window-handle 0.6.
+        └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate
+                                  Rgba8Unorm texture (STORAGE_BINDING|TEXTURE_BINDING),
+                                  TextureBlitter, and a Ui. tick() returns bool: polls
+                                  Dioxus, returns false fast if neither dirty flag nor
+                                  DOM mutation; otherwise renders + presents.  render()
+                                  calls ui.paint(&mut scene, elapsed_secs) → vello
+                                  render_to_texture(intermediate) → blitter.copy(intermediate
+                                  → swapchain) → present. Non-sRGB swapchain format
+                                  (vello does its own gamma). RawWaylandTarget bridges
+                                  SCTK pointers to raw-window-handle 0.6.
 ```
 
-Roughly 500 lines of Rust now.
+Roughly 700 lines of Rust now.
 
 ## Known gaps
 
 These are intentional debt; address as the relevant feature lands:
 
-1. **No `wl_surface::frame` callbacks (clock is frozen).** Bar paints once on configure with the startup time and never updates. This is the **next milestone** — see below.
-2. **`BarSurface::output()` returns `None`.** SCTK 0.19's `LayerSurface` doesn't expose its output. Fix when multi-monitor matters: keep a `Vec<(LayerSurface, WlOutput)>` side-table in `State` instead of relying on `BarSurface::output()`.
-3. **One `Ui` per `BarSurface`, but the VirtualDom doesn't share state across bars.** Each output gets an independent Dioxus app instance. For per-output state (e.g. focused window title) this is correct; for global state (clock, theme) it's wasteful. Acceptable for now; revisit when overlays land.
+1. **`BarSurface::output()` returns `None`.** SCTK 0.19's `LayerSurface` doesn't expose its output. Fix when multi-monitor matters: keep a `Vec<(LayerSurface, WlOutput)>` side-table in `State` instead of relying on `BarSurface::output()`.
+2. **One `Ui` per `BarSurface`, with one tokio runtime each.** Each output gets an independent Dioxus app instance + tokio runtime. For per-output state (focused window title) that's correct; for global state (clock, theme) it duplicates work. Idle cost: ~4% of one core per bar on llvmpipe; on a real GPU likely <1%. Acceptable for now; consider a shared runtime if it becomes a problem.
+3. **100ms tick rate is a compromise.** The calloop timer drives `Ui::poll` at 10Hz to advance tokio timers, regardless of whether anything actually changed. For the clock-only UI this is overkill — we only need to wake when the second-boundary fires. Optimization for later: query `tokio::time::Instant` for the next deadline and arm the calloop Timer for that instant instead of a fixed 100ms. Saves the polling-when-idle cost.
 4. **`environment.etc."xdg/dioxus-shell"` not wired.** Plan said to add it; deferred until a widget actually needs config files (theme JSON, keybindings text). Drop in `mangowc.nix` near line 502 when needed.
 5. **`xdg/quickshell-wallpapers.json`** still under that path. Generalize to `xdg/desktop-wallpapers.json` when the dioxus shell needs it.
 6. **`home/gamzat.nix:45–48`** still symlinks `~/.config/quickshell` redundantly. Plan said to drop it; deferred — non-load-bearing.
 7. **wgpu chatter on llvmpipe.** Each frame logs `Device::maintain: waiting for submission index N` at INFO. Add a default `RUST_LOG` filter in `main.rs` (`dioxus_shell=info,wgpu_core=warn,wgpu_hal=warn`).
 
-## The next milestone — per-frame redraw loop
+## The next milestone — second real widget
 
-The clock currently shows the startup time. To make it tick we need:
+The clock proved the architecture. Pick one of the Quickshell port-table widgets to validate it under non-toy load. All three follow the same shape:
 
-1. **Request frame callbacks.** In `BarSurface::configure()` (after `r.render()?` succeeds), request the next frame via `self.layer.wl_surface().frame(qh, self.layer.wl_surface().clone())`. This needs a `&QueueHandle<State>` threaded down from `Shell` — currently `BarSurface` doesn't have one. Easiest: stash the `QueueHandle` in `State` and pass to `BarSurface::configure(qh, ...)` via a new arg. Or store the qh on `BarSurface` at construction time (cheap to clone).
+```rust
+// src/ui/widgets/window_title.rs
+fn window_title() -> Element {
+    let title = use_signal(|| String::new());
+    use_future(move || {
+        let mut title = title;
+        async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(500));
+            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                if let Ok(out) = tokio::process::Command::new("mangoctl")
+                    .arg("get-active-window-title")
+                    .output().await
+                {
+                    let new = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if title.read().as_str() != new.as_str() {
+                        title.set(new);
+                    }
+                }
+            }
+        }
+    });
+    rsx!(div { class: "window-title", "{title}" })
+}
+```
 
-2. **In `CompositorHandler::frame`,** drive the next render: find the matching bar by `WlSurface` identity (already does this), call `bar.on_frame()` which now does `bar.render()` and requests another frame. Throttle: only re-render if `chrono::Local::now().second()` changed since the last drawn second — store `last_drawn_second: Option<u32>` on `BarSurface`.
+Order: window-title is the cheapest validation (single string, low update rate, no parsing). After that the natural sequence is system info (`/proc/stat` parsing, sysinfo crate), wlan (`nmcli -t` parsing), tag indicators (5 little squares with active-state styling). Each one stresses a slightly different part: process-spawning, file-reading, parsing, multi-element rsx with conditional classes.
 
-3. **Trigger Dioxus to re-render the rsx tree.** The clock value is computed once inside `app()` at `initial_build()` time; subsequent `paint()` calls just re-paint the same DOM. We need to either:
-   - **Easiest**: invalidate the signal each tick from outside Dioxus. But signals are inside the VirtualDom's runtime; touching them from `paint()` is awkward.
-   - **Better**: store the clock as a `Signal<String>` set inside an effect with a `tokio::time::interval` — but that requires running an async runtime, which we don't have.
-   - **Pragmatic**: skip Dioxus state for the clock entirely. Have `Ui::paint(scene, now_secs)` walk the BaseDocument directly to find the `.right` element and update its text via `mutate()`. Or: add `Ui::set_clock(text)` that runs the diff manually before `paint()`. This is hacky but works without an async runtime.
-   - **Most correct**: stand up a `tokio::runtime::Builder::new_current_thread()` runtime, run `vdom.wait_for_work()` between frames in a non-blocking way, and let Dioxus drive the diff via `vdom.render_immediate(&mut MutationWriter)`. This is what `dioxus-native`'s `BlitzApplication` does. See `examples/wgpu_texture/src/dioxus_native.rs` for the pattern. Cost: tokio dep (~30 crates) and an event-loop integration story.
-
-   **Recommendation**: start with the pragmatic option (mutate BaseDocument text directly on each tick), prove the redraw loop works, then revisit the architecture when the second widget needs reactive state.
-
-4. **`wl_surface::frame` requires a `QueueHandle`.** SCTK doesn't auto-store one on the surface. Pattern:
-   ```rust
-   bar.layer.wl_surface().frame(qh, bar.layer.wl_surface().clone());
-   bar.layer.commit();  // frame requests need a commit to be sent
-   ```
-   The user-data passed in (`bar.layer.wl_surface().clone()`) is what arrives in `CompositorHandler::frame`'s `surface` parameter, so we use it to identify which bar to redraw.
-
-5. **Stop animating when we have nothing to do.** If `last_drawn_second == current_second && !dirty_for_other_reasons`, skip the render entirely but still request another frame (otherwise the compositor stops calling us back). On the Proxmox VM (llvmpipe), this matters — naive 60Hz redraws of static text would peg a CPU core.
+**Watch for**: `tokio::process::Command` requires the `process` feature. `tokio::fs` requires `fs`. Add to `Cargo.toml` only when actually used. Keep the feature set tight to keep build times reasonable (current build is ~3min cold).
 
 ## Critical files for the next session
 

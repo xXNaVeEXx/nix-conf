@@ -1,11 +1,12 @@
 use anyhow::Result;
-use log::debug;
+use log::{debug, warn};
 use smithay_client_toolkit::{
-    reexports::client::protocol::wl_output,
+    reexports::client::{protocol::wl_output, QueueHandle},
     shell::{wlr_layer::LayerSurface, WaylandSurface},
 };
 
 use crate::render::Renderer;
+use crate::wayland::shell::State;
 
 pub struct BarSurface {
     layer: LayerSurface,
@@ -31,12 +32,12 @@ impl BarSurface {
     }
 
     pub fn output(&self) -> Option<wl_output::WlOutput> {
-        // SCTK doesn't expose the output bound at create time on LayerSurface
-        // directly; for now we don't track it here. Multi-output handling at
-        // the skeleton stage is by-surface, not by-output.
+        // SCTK doesn't expose the output bound at create time on LayerSurface.
         None
     }
 
+    /// Compositor sent us a configure event with new dimensions. Initialize
+    /// the renderer (first time) or resize it. Always paints once after.
     pub fn configure(&mut self, width: u32, height: u32) -> Result<()> {
         let resized = width != self.width || height != self.height;
         self.width = width;
@@ -54,14 +55,28 @@ impl BarSurface {
         }
 
         if let Some(r) = self.renderer.as_mut() {
-            r.render()?;
+            r.tick()?;
         }
         self.layer.commit();
         Ok(())
     }
 
-    pub fn on_frame(&mut self) {
-        // Nothing to do at the skeleton stage — bar is static.
-        // Future: drive widget animations / Dioxus renders here.
+    /// Called from the calloop tick timer. Drives Dioxus + tokio; only
+    /// repaints + commits if the document changed (renderer.tick() handles the
+    /// dirty check).
+    pub fn tick(&mut self, _qh: &QueueHandle<State>) {
+        if !self.configured {
+            return;
+        }
+        if let Some(r) = self.renderer.as_mut() {
+            match r.tick() {
+                Ok(painted) => {
+                    if painted {
+                        self.layer.commit();
+                    }
+                }
+                Err(e) => warn!("render failed: {e:#}"),
+            }
+        }
     }
 }

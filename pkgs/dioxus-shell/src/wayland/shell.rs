@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+use calloop::{EventLoop, LoopHandle, timer::{TimeoutAction, Timer}};
+use calloop_wayland_source::WaylandSource;
 use log::{debug, info, warn};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
@@ -6,7 +8,7 @@ use smithay_client_toolkit::{
     output::{OutputHandler, OutputState},
     reexports::client::{
         globals::registry_queue_init, protocol::wl_output, protocol::wl_surface, Connection,
-        EventQueue, QueueHandle,
+        QueueHandle,
     },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
@@ -17,14 +19,20 @@ use smithay_client_toolkit::{
         WaylandSurface,
     },
 };
+use std::time::Duration;
 
 use super::surface::BarSurface;
 
 const BAR_HEIGHT: u32 = 32;
 
+/// How often the calloop timer fires to drive Dioxus + tokio. 100ms is a
+/// compromise: low enough that signal updates feel instant, high enough to
+/// keep idle CPU low. wgpu's FIFO present mode throttles renders to vsync
+/// regardless.
+const TICK_INTERVAL: Duration = Duration::from_millis(100);
+
 pub struct Shell {
-    conn: Connection,
-    event_queue: EventQueue<State>,
+    event_loop: EventLoop<'static, State>,
     state: State,
 }
 
@@ -33,8 +41,9 @@ pub struct State {
     output_state: OutputState,
     compositor_state: CompositorState,
     layer_shell: LayerShell,
-    bars: Vec<BarSurface>,
-    running: bool,
+    pub bars: Vec<BarSurface>,
+    pub running: bool,
+    pub qh: QueueHandle<State>,
 }
 
 impl Shell {
@@ -47,6 +56,13 @@ impl Shell {
             CompositorState::bind(&globals, &qh).context("bind wl_compositor")?;
         let layer_shell = LayerShell::bind(&globals, &qh).context("bind zwlr_layer_shell_v1")?;
 
+        let event_loop: EventLoop<'static, State> =
+            EventLoop::try_new().context("calloop event loop")?;
+
+        WaylandSource::new(conn, event_queue)
+            .insert(event_loop.handle())
+            .map_err(|e| anyhow::anyhow!("insert wayland source: {e}"))?;
+
         let state = State {
             registry_state: RegistryState::new(&globals),
             output_state: OutputState::new(&globals, &qh),
@@ -54,32 +70,40 @@ impl Shell {
             layer_shell,
             bars: Vec::new(),
             running: true,
+            qh,
         };
 
-        Ok(Self {
-            conn,
-            event_queue,
-            state,
-        })
+        Ok(Self { event_loop, state })
     }
 
     pub fn run(&mut self) -> Result<()> {
-        // First roundtrip — fires OutputHandler::new_output for every existing
-        // output, which creates exactly one bar per output.
-        self.event_queue
-            .roundtrip(&mut self.state)
-            .context("initial roundtrip")?;
+        // First dispatch — the WaylandSource has already set up the connection,
+        // and the initial roundtrip happens via the calloop dispatch below.
+        // We schedule a tick timer that drives Dioxus + repaints when needed.
+        let handle = self.event_loop.handle();
+        schedule_tick(&handle);
+
+        // Pump once to surface initial outputs (fires OutputHandler::new_output).
+        self.event_loop
+            .dispatch(Some(Duration::from_millis(0)), &mut self.state)
+            .context("initial dispatch")?;
         info!("running with {} bar surface(s)", self.state.bars.len());
 
         while self.state.running {
-            self.event_queue
-                .blocking_dispatch(&mut self.state)
+            self.event_loop
+                .dispatch(None, &mut self.state)
                 .context("event dispatch")?;
         }
-
-        let _ = self.conn;
         Ok(())
     }
+}
+
+fn schedule_tick(handle: &LoopHandle<'static, State>) {
+    let timer = Timer::from_duration(TICK_INTERVAL);
+    let _ = handle.insert_source(timer, move |_deadline, _, state| {
+        state.tick();
+        TimeoutAction::ToDuration(TICK_INTERVAL)
+    });
 }
 
 impl State {
@@ -104,6 +128,14 @@ impl State {
         let bar = BarSurface::new(layer);
         self.bars.push(bar);
         Ok(())
+    }
+
+    /// Called every TICK_INTERVAL. Drives Dioxus, renders bars whose state changed.
+    fn tick(&mut self) {
+        let qh = self.qh.clone();
+        for bar in &mut self.bars {
+            bar.tick(&qh);
+        }
     }
 }
 
@@ -130,14 +162,13 @@ impl CompositorHandler for State {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        surface: &wl_surface::WlSurface,
+        _surface: &wl_surface::WlSurface,
         _time: u32,
     ) {
-        for bar in &mut self.bars {
-            if bar.surface().wl_surface() == surface {
-                bar.on_frame();
-            }
-        }
+        // We don't drive renders from frame callbacks anymore — the calloop
+        // timer is the redraw heartbeat. Frame callbacks are still requested
+        // implicitly by wgpu's swapchain (Fifo present mode), and the protocol
+        // dispatches them harmlessly.
     }
 
     fn surface_enter(

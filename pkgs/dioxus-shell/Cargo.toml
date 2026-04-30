@@ -23,6 +23,9 @@ anyrender_vello = { git = "https://github.com/DioxusLabs/anyrender", branch = "m
 dioxus = { version = "0.7.3", default-features = false, features = ["macro", "hooks", "signals", "html"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 pollster = "0.4"
+tokio = { version = "1", features = ["rt", "time", "macros", "sync"] }
+calloop = "0.13"
+calloop-wayland-source = "0.3"
 log = "0.4"
 env_logger = "0.11"
 anyhow = "1"

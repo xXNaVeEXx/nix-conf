@@ -41,6 +41,7 @@ pub struct Renderer {
     blitter: TextureBlitter,
     ui: Ui,
     started_at: Instant,
+    first_paint: bool,
 }
 
 impl Renderer {
@@ -153,6 +154,7 @@ impl Renderer {
             blitter,
             ui,
             started_at: Instant::now(),
+            first_paint: true,
         })
     }
 
@@ -171,7 +173,24 @@ impl Renderer {
         self.ui.resize(w, h);
     }
 
-    pub fn render(&mut self) -> Result<()> {
+    /// Called from the per-tick loop. Polls Dioxus; if the document changed
+    /// or this is the first paint, runs a full render. Returns true iff a
+    /// render+present happened (so the caller knows whether to commit).
+    pub fn tick(&mut self) -> Result<bool> {
+        let dirty_flag = self.ui.dirty_flag();
+        let was_dirty = dirty_flag.take();
+        // Always poll: drives tokio forward (use_future intervals etc.) even
+        // when no signal fired this round.
+        let dom_changed = self.ui.poll();
+        if !was_dirty && !dom_changed && !self.first_paint {
+            return Ok(false);
+        }
+        self.render()?;
+        self.first_paint = false;
+        Ok(true)
+    }
+
+    fn render(&mut self) -> Result<()> {
         let frame = self
             .surface
             .get_current_texture()
