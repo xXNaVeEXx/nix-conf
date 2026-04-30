@@ -141,6 +141,7 @@ fn App() -> Element {
                 }
             }
             div { class: "right",
+                widgets::SystemInfo {}
                 widgets::Clock {}
             }
         }
@@ -181,8 +182,21 @@ body {
 }
 .right {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   color: rgb(220, 220, 230);
 }
+.sysinfo {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  color: rgb(180, 200, 220);
+}
+.metric { display: inline-flex; gap: 4px; }
+.metric .label { color: rgb(120, 140, 170); }
+.metric .value { color: rgb(220, 230, 245); }
 .tag-indicators {
   display: flex;
   gap: 8px;

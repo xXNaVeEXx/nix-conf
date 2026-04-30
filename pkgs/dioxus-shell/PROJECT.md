@@ -20,16 +20,19 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 **Reactive redraw loop milestone: complete.** A `tokio::runtime::Builder::new_current_thread().enable_time().enable_io()` runtime drives `use_future` hooks. `Ui::poll()` enters the runtime, `block_on(yield_now())` to advance pending tasks, then calls `DioxusDocument::poll(cx)` with a `DirtyWaker` that flips an atomic flag when any Dioxus signal fires. The Wayland event loop was rewritten on top of `calloop::EventLoop` with `WaylandSource` + a 100ms `Timer` that drives `Ui::poll()` and re-renders only when the dirty flag was set. Idle CPU on llvmpipe-on-Proxmox is ~4% (down from ~13% in the unconditional 60Hz draft).
 
-**Multi-widget milestone: complete.** Widgets factored out under `src/ui/widgets/`. Two real reactive widgets:
+**Multi-widget milestone: complete.** Widgets factored out under `src/ui/widgets/`. Four real reactive widgets:
 - `widgets::Clock` — `use_signal(String)` updated every second by `tokio::time::interval`.
-- `widgets::WindowTitle` — `use_future` polls `mangoctl get-active-window-title` every 500ms via `tokio::process::Command`. Diff-and-skip: signal is only `.set()` when the new value differs, so most polls are free. Returns `·` when the command isn't found / times out / window is `Desktop`.
+- `widgets::WindowTitle` — `use_future` polls `mangoctl get-active-window-title` every 500ms via `tokio::process::Command`. Diff-and-skip: signal is only `.set()` when the new value differs.
+- `widgets::TagIndicators` — polls `mangoctl get-active-tag` every 500ms. Renders five 10px dots (mirroring Quickshell's `TagIndicators.qml`) with the active one highlighted via a CSS class swap.
+- `widgets::SystemInfo` — uses the `sysinfo` crate (no shelling out) to read CPU and memory usage every 2s. Pure-Rust `/proc` reads. `global_cpu_usage()` is averaged across all cores, matching what users expect from a system monitor.
 
-Two widgets at 3.4% idle CPU on llvmpipe — the architecture scales linearly with widget count. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved. The build does take ~30s incremental for a widget-only change because `dioxus-core-macro`'s rsx expansion is heavy.
+Idle CPU on llvmpipe-on-Proxmox: 3.4% (2 widgets) → 5.6% (3 widgets) → 6.1% (4 widgets). Per-widget cost is proportional to (poll rate × work per poll). Cheap widgets (sysinfo, slow polls) add ~0.5%; expensive widgets (process-spawning, fast polls) add ~2%. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved.
 
-**Next milestone: pick another Quickshell-parity widget and port it.** The natural next ones from the original port-table:
-- `widgets::TagIndicators` — 5 little squares with active-state styling. Polls `mangoctl get-active-tag`. Exercises **conditional rsx classes** (Dioxus iterators + `if` branches in attribute lists).
-- `widgets::SystemInfo` — CPU/mem percentages. Uses the `sysinfo` crate. Exercises **periodic numeric updates** + the formatting story.
+**Next milestone: pick another Quickshell-parity widget.** The remaining bar widgets:
 - `widgets::Wlan` — parses `nmcli -t -f active,ssid,signal dev wifi`. Exercises **multi-field parsing** and conditional rendering (no wifi → hide cell).
+- `widgets::WayVNC` — polls a wayvnc control socket if it's enabled. Exercises **optional-presence widgets** that hide themselves when inapplicable.
+
+After bar widgets are done, the bigger items: bottom dock with auto-hide animation, theme switcher overlay, keybindings cheatsheet overlay, `/tmp/quickshell-command` IPC.
 
 `mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate.
 
@@ -163,11 +166,15 @@ pkgs/dioxus-shell/
     │   │                         a flexbox. Uses dioxus::prelude (umbrella crate; rsx!
     │   │                         lives in dioxus-core-macro, re-exported).
     │   └── widgets/
-    │       ├── mod.rs          — pub use clock::Clock, window_title::WindowTitle
+    │       ├── mod.rs          — pub use Clock, WindowTitle, TagIndicators, SystemInfo
     │       ├── clock.rs        — Signal<String> + 1s tokio interval
-    │       └── window_title.rs — Signal<String> + 500ms tokio::process::Command poll of
-    │                             `mangoctl get-active-window-title`. Diff-and-skip: only
-    │                             sets the signal when the value actually changes.
+    │       ├── window_title.rs — Signal<String> + 500ms `mangoctl get-active-window-title`
+    │       │                     poll via tokio::process::Command. Diff-and-skip.
+    │       ├── tag_indicators.rs — Signal<u8> + 500ms `mangoctl get-active-tag`. Renders
+    │       │                     5 dots with conditional `class: "tag-dot active"`.
+    │       └── system_info.rs  — Signal<Stats> + 2s sysinfo polling (pure-Rust /proc).
+    │                             RefCell<System> reused across ticks (System::new is
+    │                             heavy). Refreshes only CPU usage + RAM (not disks/nets).
     └── render/
         ├── mod.rs              — pub use renderer::Renderer
         └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate

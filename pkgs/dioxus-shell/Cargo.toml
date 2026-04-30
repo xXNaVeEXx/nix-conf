@@ -22,6 +22,7 @@ dioxus-native-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "6863ea
 anyrender_vello = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
 dioxus = { version = "0.7.3", default-features = false, features = ["macro", "hooks", "signals", "html"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 pollster = "0.4"
 tokio = { version = "1", features = ["rt", "time", "macros", "sync", "process", "io-util"] }
 calloop = "0.13"
