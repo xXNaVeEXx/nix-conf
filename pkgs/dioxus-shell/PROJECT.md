@@ -20,19 +20,23 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 **Reactive redraw loop milestone: complete.** A `tokio::runtime::Builder::new_current_thread().enable_time().enable_io()` runtime drives `use_future` hooks. `Ui::poll()` enters the runtime, `block_on(yield_now())` to advance pending tasks, then calls `DioxusDocument::poll(cx)` with a `DirtyWaker` that flips an atomic flag when any Dioxus signal fires. The Wayland event loop was rewritten on top of `calloop::EventLoop` with `WaylandSource` + a 100ms `Timer` that drives `Ui::poll()` and re-renders only when the dirty flag was set. Idle CPU on llvmpipe-on-Proxmox is ~4% (down from ~13% in the unconditional 60Hz draft).
 
-**Multi-widget milestone: complete.** Widgets factored out under `src/ui/widgets/`. Four real reactive widgets:
+**Multi-widget milestone: complete.** Widgets factored out under `src/ui/widgets/`. Five reactive widgets covering the full top bar from the original Quickshell port:
 - `widgets::Clock` — `use_signal(String)` updated every second by `tokio::time::interval`.
-- `widgets::WindowTitle` — `use_future` polls `mangoctl get-active-window-title` every 500ms via `tokio::process::Command`. Diff-and-skip: signal is only `.set()` when the new value differs.
-- `widgets::TagIndicators` — polls `mangoctl get-active-tag` every 500ms. Renders five 10px dots (mirroring Quickshell's `TagIndicators.qml`) with the active one highlighted via a CSS class swap.
-- `widgets::SystemInfo` — uses the `sysinfo` crate (no shelling out) to read CPU and memory usage every 2s. Pure-Rust `/proc` reads. `global_cpu_usage()` is averaged across all cores, matching what users expect from a system monitor.
+- `widgets::WindowTitle` — `use_future` polls `mangoctl get-active-window-title` every 500ms via `tokio::process::Command`.
+- `widgets::TagIndicators` — polls `mangoctl get-active-tag` every 500ms. Renders five 10px dots with the active one highlighted via class swap.
+- `widgets::SystemInfo` — `sysinfo` crate, `/proc`-based, every 2s. CPU% averaged across all cores + RAM%.
+- `widgets::Wlan` — polls `nmcli -t` for ethernet and wifi state every 5s. Color-coded by signal strength: strong/medium/weak/poor/offline.
 
-Idle CPU on llvmpipe-on-Proxmox: 3.4% (2 widgets) → 5.6% (3 widgets) → 6.1% (4 widgets). Per-widget cost is proportional to (poll rate × work per poll). Cheap widgets (sysinfo, slow polls) add ~0.5%; expensive widgets (process-spawning, fast polls) add ~2%. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved.
+Idle CPU on llvmpipe-on-Proxmox: 3.4% (2 widgets) → 5.6% (3) → 6.1% (4) → 6.9% (5). Per-widget cost is proportional to (poll rate × work per poll). Cheap widgets (sysinfo, slow polls) add ~0.5%; expensive widgets (process-spawning, fast polls) add ~2%. On real GPU hardware these numbers would likely be ~1× their current values. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved.
 
-**Next milestone: pick another Quickshell-parity widget.** The remaining bar widgets:
-- `widgets::Wlan` — parses `nmcli -t -f active,ssid,signal dev wifi`. Exercises **multi-field parsing** and conditional rendering (no wifi → hide cell).
-- `widgets::WayVNC` — polls a wayvnc control socket if it's enabled. Exercises **optional-presence widgets** that hide themselves when inapplicable.
+**The top bar has parity with Quickshell.** What's left from the original Quickshell port:
+1. **Bottom dock** with auto-hide animation, app launcher buttons (Quickshell's `Dock.qml`, ~230 lines).
+2. **Theme switcher overlay** triggered by Alt+Shift+T (Quickshell's `ThemeSwitcher.qml` + `Themes.qml`, ~670 lines combined).
+3. **Keybindings cheatsheet overlay** triggered by Alt+B (`KeybindingsCheatsheet.qml`, 355 lines).
+4. **IPC** — watch `/tmp/quickshell-command` for `toggle-theme-switcher` / `toggle-keybindings-cheatsheet` strings to drive the overlays.
+5. **WayVNC widget** — only relevant if `mySystem.remote.wayvnc = true`. Polls `wayvncctl`. Skip unless needed.
 
-After bar widgets are done, the bigger items: bottom dock with auto-hide animation, theme switcher overlay, keybindings cheatsheet overlay, `/tmp/quickshell-command` IPC.
+The dock is the biggest remaining piece — it needs a second layer-shell surface (anchored bottom, no exclusive zone, slide animation via `wl_surface::frame` callbacks). The overlays are similar but anchored center with `KeyboardInteractivity::Exclusive`. None of this is conceptually new — it's all "create another `BarSurface`-like struct, wire it through" — but it's significant volume of plumbing.
 
 `mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate.
 
@@ -172,9 +176,13 @@ pkgs/dioxus-shell/
     │       │                     poll via tokio::process::Command. Diff-and-skip.
     │       ├── tag_indicators.rs — Signal<u8> + 500ms `mangoctl get-active-tag`. Renders
     │       │                     5 dots with conditional `class: "tag-dot active"`.
-    │       └── system_info.rs  — Signal<Stats> + 2s sysinfo polling (pure-Rust /proc).
-    │                             RefCell<System> reused across ticks (System::new is
-    │                             heavy). Refreshes only CPU usage + RAM (not disks/nets).
+    │       ├── system_info.rs  — Signal<Stats> + 2s sysinfo polling (pure-Rust /proc).
+    │       │                     RefCell<System> reused across ticks (System::new is
+    │       │                     heavy). Refreshes only CPU usage + RAM (not disks/nets).
+    │       └── wlan.rs         — Signal<NetState> + 5s nmcli polling. NetState enum:
+    │                             Lan(device) / Wifi(ssid, signal) / Disconnected.
+    │                             Two nmcli calls per poll (dev list, then wifi list).
+    │                             Color class chosen by signal strength buckets.
     └── render/
         ├── mod.rs              — pub use renderer::Renderer
         └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate

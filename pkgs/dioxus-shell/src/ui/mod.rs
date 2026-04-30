@@ -141,6 +141,7 @@ fn App() -> Element {
                 }
             }
             div { class: "right",
+                widgets::Wlan {}
                 widgets::SystemInfo {}
                 widgets::Clock {}
             }
@@ -197,6 +198,12 @@ body {
 .metric { display: inline-flex; gap: 4px; }
 .metric .label { color: rgb(120, 140, 170); }
 .metric .value { color: rgb(220, 230, 245); }
+.wlan { color: rgb(180, 200, 220); }
+.wlan.strong { color: rgb(140, 230, 170); }
+.wlan.medium { color: rgb(200, 220, 130); }
+.wlan.weak { color: rgb(230, 180, 120); }
+.wlan.poor { color: rgb(230, 130, 130); }
+.wlan.offline { color: rgb(120, 120, 130); }
 .tag-indicators {
   display: flex;
   gap: 8px;
