@@ -135,7 +135,10 @@ fn App() -> Element {
         style { {STYLES} }
         div { class: "bar",
             div { class: "left",
-                widgets::WindowTitle {}
+                widgets::TagIndicators {}
+                div { class: "title",
+                    widgets::WindowTitle {}
+                }
             }
             div { class: "right",
                 widgets::Clock {}
@@ -164,13 +167,37 @@ body {
 .left {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgb(200, 210, 230);
+}
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: rgb(200, 210, 230);
 }
 .right {
   flex: 0 0 auto;
   color: rgb(220, 220, 230);
+}
+.tag-indicators {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.tag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: rgb(50, 60, 75);
+  border: 1px solid rgb(70, 85, 105);
+}
+.tag-dot.active {
+  background: rgb(80, 160, 255);
+  border: 2px solid rgb(160, 200, 255);
 }
 ";
