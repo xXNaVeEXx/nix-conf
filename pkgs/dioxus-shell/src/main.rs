@@ -2,6 +2,7 @@ use anyhow::Result;
 use log::info;
 
 mod render;
+mod ui;
 mod wayland;
 
 fn main() -> Result<()> {

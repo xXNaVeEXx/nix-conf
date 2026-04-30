@@ -4,12 +4,30 @@ use raw_window_handle::{
     RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle, WindowHandle,
 };
 use smithay_client_toolkit::reexports::client::{protocol::wl_surface::WlSurface, Proxy};
+use std::num::NonZeroUsize;
 use std::ptr::NonNull;
-use wgpu::{
-    Backends, Color, CommandEncoderDescriptor, Device, Instance, InstanceDescriptor,
-    LoadOp, Operations, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    StoreOp, Surface, SurfaceConfiguration, TextureUsages, TextureViewDescriptor,
+use std::time::Instant;
+use vello::peniko::Color;
+use vello::wgpu::util::TextureBlitter;
+use vello::{
+    AaConfig, AaSupport, RenderParams, Renderer as VelloRenderer, RendererOptions, Scene,
 };
+use wgpu::{
+    Backends, CommandEncoderDescriptor, Device, Extent3d, Instance, InstanceDescriptor, PresentMode,
+    Queue, Surface, SurfaceConfiguration, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
+};
+
+use crate::ui::Ui;
+
+// Vello uses a compute shader to render. It needs a Rgba8Unorm storage texture
+// as its target; the result then gets blitted onto the swapchain. See
+// vello::util::create_targets at vello-0.8.0/src/util.rs:189.
+const VELLO_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
+
+// Backgound color for the bar. Vello applies its own gamma; the swapchain
+// format is non-sRGB so this is the value the user sees.
+const BAR_BG: Color = Color::from_rgba8(18, 23, 31, 255);
 
 pub struct Renderer {
     _instance: Instance,
@@ -17,6 +35,12 @@ pub struct Renderer {
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
+    vello: VelloRenderer,
+    target_texture: Texture,
+    target_view: TextureView,
+    blitter: TextureBlitter,
+    ui: Ui,
+    started_at: Instant,
 }
 
 impl Renderer {
@@ -38,9 +62,6 @@ impl Renderer {
             surface: NonNull::new(surface_ptr).ok_or_else(|| anyhow!("null wl_surface"))?,
         };
 
-        // SAFETY: wl_display + wl_surface remain valid for the lifetime of `Renderer`
-        // because BarSurface owns the LayerSurface (and thus the WlSurface), and the
-        // Connection lives for the program's lifetime.
         let raw_display = target
             .display_handle()
             .map_err(|e| anyhow!("display handle: {e}"))?
@@ -50,6 +71,9 @@ impl Renderer {
             .map_err(|e| anyhow!("window handle: {e}"))?
             .as_raw();
 
+        // SAFETY: wl_display + wl_surface remain valid for the lifetime of
+        // `Renderer` because BarSurface owns the LayerSurface (and thus the
+        // WlSurface), and the Connection lives for the program's lifetime.
         let surface = unsafe {
             instance
                 .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
@@ -70,7 +94,7 @@ impl Renderer {
             &wgpu::DeviceDescriptor {
                 label: Some("dioxus-shell"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::downlevel_defaults(),
+                required_limits: wgpu::Limits::default(),
                 experimental_features: wgpu::ExperimentalFeatures::default(),
                 memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
@@ -78,13 +102,15 @@ impl Renderer {
         ))
         .context("request_device")?;
 
+        // Vello requires a non-sRGB swapchain format. Prefer Bgra8Unorm if the
+        // surface advertises it, otherwise Rgba8Unorm.
         let caps = surface.get_capabilities(&adapter);
         let format = caps
             .formats
             .iter()
             .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(caps.formats[0]);
+            .find(|f| matches!(f, TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm))
+            .ok_or_else(|| anyhow!("surface supports neither Bgra8Unorm nor Rgba8Unorm"))?;
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
@@ -98,19 +124,51 @@ impl Renderer {
         };
         surface.configure(&device, &config);
 
+        let (target_texture, target_view) =
+            create_vello_target(&device, config.width, config.height);
+
+        let vello = VelloRenderer::new(
+            &device,
+            RendererOptions {
+                use_cpu: false,
+                antialiasing_support: AaSupport::area_only(),
+                num_init_threads: NonZeroUsize::new(1),
+                pipeline_cache: None,
+            },
+        )
+        .map_err(|e| anyhow!("vello renderer init: {e}"))?;
+
+        let blitter = TextureBlitter::new(&device, format);
+        let ui = Ui::new(config.width, config.height);
+
         Ok(Self {
             _instance: instance,
             surface,
             device,
             queue,
             config,
+            vello,
+            target_texture,
+            target_view,
+            blitter,
+            ui,
+            started_at: Instant::now(),
         })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.config.width = width.max(1);
-        self.config.height = height.max(1);
+        let w = width.max(1);
+        let h = height.max(1);
+        if w == self.config.width && h == self.config.height {
+            return;
+        }
+        self.config.width = w;
+        self.config.height = h;
         self.surface.configure(&self.device, &self.config);
+        let (texture, view) = create_vello_target(&self.device, w, h);
+        self.target_texture = texture;
+        self.target_view = view;
+        self.ui.resize(w, h);
     }
 
     pub fn render(&mut self) -> Result<()> {
@@ -118,39 +176,57 @@ impl Renderer {
             .surface
             .get_current_texture()
             .context("acquire surface texture")?;
-        let view = frame.texture.create_view(&TextureViewDescriptor::default());
+        let swapchain_view = frame.texture.create_view(&TextureViewDescriptor::default());
+
+        let mut scene = Scene::new();
+        let now_secs = self.started_at.elapsed().as_secs_f64();
+        self.ui.paint(&mut scene, now_secs);
+
+        self.vello
+            .render_to_texture(
+                &self.device,
+                &self.queue,
+                &scene,
+                &self.target_view,
+                &RenderParams {
+                    base_color: BAR_BG,
+                    width: self.config.width,
+                    height: self.config.height,
+                    antialiasing_method: AaConfig::Area,
+                },
+            )
+            .map_err(|e| anyhow!("vello render_to_texture: {e}"))?;
+
         let mut encoder = self
             .device
-            .create_command_encoder(&CommandEncoderDescriptor { label: None });
-        {
-            let _pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("clear-bar"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: Operations {
-                        // Dark slate (#121720) as linear values — sRGB framebuffer
-                        // expects linear input and applies the gamma curve at output.
-                        load: LoadOp::Clear(Color {
-                            r: 0.0056,
-                            g: 0.0080,
-                            b: 0.0144,
-                            a: 1.0,
-                        }),
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("vello-blit"),
             });
-        }
+        self.blitter
+            .copy(&self.device, &mut encoder, &self.target_view, &swapchain_view);
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())
     }
+}
+
+fn create_vello_target(device: &Device, width: u32, height: u32) -> (Texture, TextureView) {
+    let texture = device.create_texture(&TextureDescriptor {
+        label: Some("vello-target"),
+        size: Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: VELLO_TARGET_FORMAT,
+        usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&TextureViewDescriptor::default());
+    (texture, view)
 }
 
 // Bridge between SCTK's raw Wayland pointers and raw-window-handle 0.6, which
@@ -163,9 +239,7 @@ struct RawWaylandTarget {
 impl HasDisplayHandle for RawWaylandTarget {
     fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
         let raw = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(self.display));
-        // SAFETY: pointer remains valid for as long as RawWaylandTarget exists,
-        // which is bounded by the surrounding `unsafe { create_surface_unsafe ... }`
-        // call in Renderer::new.
+        // SAFETY: pointer remains valid for as long as RawWaylandTarget exists.
         Ok(unsafe { DisplayHandle::borrow_raw(raw) })
     }
 }

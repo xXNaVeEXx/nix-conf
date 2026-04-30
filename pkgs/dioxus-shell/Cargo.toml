@@ -20,7 +20,7 @@ blitz-paint = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36
 blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false }
 dioxus-native-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false, features = ["system-fonts"] }
 anyrender_vello = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
-dioxus-core = "0.7.3"
+dioxus = { version = "0.7.3", default-features = false, features = ["macro", "hooks", "signals", "html"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 pollster = "0.4"
 log = "0.4"

@@ -64,20 +64,12 @@ impl Shell {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        // First roundtrip — surfaces a wl_output for every existing output.
+        // First roundtrip — fires OutputHandler::new_output for every existing
+        // output, which creates exactly one bar per output.
         self.event_queue
             .roundtrip(&mut self.state)
             .context("initial roundtrip")?;
-        info!(
-            "got {} outputs, creating bar surfaces",
-            self.state.output_state.outputs().count()
-        );
-
-        let qh = self.event_queue.handle();
-        let outputs: Vec<wl_output::WlOutput> = self.state.output_state.outputs().collect();
-        for output in outputs {
-            self.state.create_bar(&qh, &output)?;
-        }
+        info!("running with {} bar surface(s)", self.state.bars.len());
 
         while self.state.running {
             self.event_queue
