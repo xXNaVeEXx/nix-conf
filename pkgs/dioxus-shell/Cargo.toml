@@ -12,6 +12,7 @@ path = "src/main.rs"
 smithay-client-toolkit = "0.19"
 wayland-client = { version = "0.31", features = ["log"] }
 wayland-backend = { version = "0.3", features = ["client_system"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 raw-window-handle = "0.6"
 wgpu = { version = "=28", default-features = false, features = ["wgsl", "vulkan"] }
 vello = { version = "0.8", features = ["wgpu"] }

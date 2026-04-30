@@ -19,9 +19,16 @@ use smithay_client_toolkit::{
         WaylandSurface,
     },
 };
+use std::collections::HashMap;
 use std::time::Duration;
+use tokio::sync::watch;
+use wayland_protocols_wlr::foreign_toplevel::v1::client::{
+    zwlr_foreign_toplevel_handle_v1::ZwlrForeignToplevelHandleV1,
+    zwlr_foreign_toplevel_manager_v1::ZwlrForeignToplevelManagerV1,
+};
 
 use super::surface::BarSurface;
+use super::toplevel::{PendingToplevel, Toplevel};
 
 const BAR_HEIGHT: u32 = 32;
 
@@ -44,6 +51,16 @@ pub struct State {
     pub bars: Vec<BarSurface>,
     pub running: bool,
     pub qh: QueueHandle<State>,
+    /// Foreign-toplevel manager. Held to keep the global alive; protocol
+    /// events are dispatched via the Dispatch impl in toplevel.rs.
+    _toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
+    /// Per-handle accumulator. Mutated on each protocol event; flushed into
+    /// the watch channel on `done`.
+    pub toplevels: HashMap<ZwlrForeignToplevelHandleV1, PendingToplevel>,
+    /// Broadcast channel for the public Vec<Toplevel> snapshot. Widgets
+    /// subscribe via `toplevel_rx()`.
+    toplevel_tx: watch::Sender<Vec<Toplevel>>,
+    toplevel_rx: watch::Receiver<Vec<Toplevel>>,
 }
 
 impl Shell {
@@ -55,6 +72,16 @@ impl Shell {
         let compositor_state =
             CompositorState::bind(&globals, &qh).context("bind wl_compositor")?;
         let layer_shell = LayerShell::bind(&globals, &qh).context("bind zwlr_layer_shell_v1")?;
+        // Foreign toplevel manager is optional — not all compositors implement
+        // it. Log if it's missing but don't fail.
+        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> =
+            match globals.bind(&qh, 1..=3, ()) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    warn!("zwlr_foreign_toplevel_management_v1 unavailable: {e}");
+                    None
+                }
+            };
 
         let event_loop: EventLoop<'static, State> =
             EventLoop::try_new().context("calloop event loop")?;
@@ -62,6 +89,8 @@ impl Shell {
         WaylandSource::new(conn, event_queue)
             .insert(event_loop.handle())
             .map_err(|e| anyhow::anyhow!("insert wayland source: {e}"))?;
+
+        let (toplevel_tx, toplevel_rx) = watch::channel(Vec::new());
 
         let state = State {
             registry_state: RegistryState::new(&globals),
@@ -71,9 +100,20 @@ impl Shell {
             bars: Vec::new(),
             running: true,
             qh,
+            _toplevel_manager: toplevel_manager,
+            toplevels: HashMap::new(),
+            toplevel_tx,
+            toplevel_rx,
         };
 
         Ok(Self { event_loop, state })
+    }
+
+    /// Subscribe to the live top-level window list. Widgets use this to power
+    /// the dock's running-app indicators.
+    #[allow(dead_code)]
+    pub fn toplevel_rx(&self) -> watch::Receiver<Vec<Toplevel>> {
+        self.state.toplevel_rx.clone()
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -135,6 +175,42 @@ impl State {
         let qh = self.qh.clone();
         for bar in &mut self.bars {
             bar.tick(&qh);
+        }
+    }
+
+    /// Build the public snapshot Vec from the pending-handle map and broadcast
+    /// it through the watch channel. Called from foreign_toplevel `done` and
+    /// `closed` events.
+    pub fn publish_toplevels(&mut self) {
+        let list: Vec<Toplevel> = self
+            .toplevels
+            .values()
+            .filter(|p| !p.closed)
+            .map(|p| Toplevel {
+                app_id: p.app_id.clone().unwrap_or_default(),
+                title: p.title.clone().unwrap_or_default(),
+                activated: p.activated.unwrap_or(false),
+                minimized: p.minimized.unwrap_or(false),
+            })
+            .collect();
+        // Skip notify if the snapshot is identical to the last published one.
+        // The protocol sends state events frequently (focus changes within
+        // windows etc.) but the dock only cares when the visible Vec changes.
+        let changed = self.toplevel_tx.send_if_modified(|current| {
+            if *current == list {
+                false
+            } else {
+                *current = list;
+                true
+            }
+        });
+        if changed {
+            let snapshot = self.toplevel_tx.borrow();
+            debug!(
+                "toplevels published: {} app(s): {:?}",
+                snapshot.len(),
+                snapshot.iter().map(|t| &t.app_id).collect::<Vec<_>>()
+            );
         }
     }
 }
