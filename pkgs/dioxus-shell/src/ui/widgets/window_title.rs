@@ -1,46 +1,43 @@
+use crate::wayland::Toplevel;
 use dioxus::prelude::*;
-use std::time::Duration;
-use tokio::process::Command;
-use tokio::time::{interval, MissedTickBehavior};
+use tokio::sync::watch;
 
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
-
+/// Display the active window's title. Falls back to the short form of the
+/// app_id when the title is empty (some apps like wezterm don't set a title
+/// at the shell prompt). Sourced from the foreign_toplevel watch channel —
+/// no process spawning, just diff-and-set on each broadcast.
 #[component]
 pub fn WindowTitle() -> Element {
-    let mut title = use_signal(|| String::from("·"));
+    let rx = use_context::<watch::Receiver<Vec<Toplevel>>>();
+    let mut label = use_signal(|| pick_label(&rx.borrow()));
 
-    use_future(move || async move {
-        let mut interval = interval(POLL_INTERVAL);
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        loop {
-            interval.tick().await;
-            let new = fetch_active_title().await.unwrap_or_else(|| String::from("·"));
-            if title.read().as_str() != new.as_str() {
-                title.set(new);
+    use_future(move || {
+        let mut rx = rx.clone();
+        async move {
+            while rx.changed().await.is_ok() {
+                let new = pick_label(&rx.borrow());
+                if *label.read() != new {
+                    label.set(new);
+                }
             }
         }
     });
 
-    rsx!("{title}")
+    rsx!("{label}")
 }
 
-/// Run `mangoctl get-active-window-title`. Returns None if the command can't
-/// be spawned (mangoctl missing, not running under MangoWC, etc.) or if it
-/// fails — the caller treats that as "no active window."
-async fn fetch_active_title() -> Option<String> {
-    let output = Command::new("mangoctl")
-        .arg("get-active-window-title")
-        .output()
-        .await
-        .ok()?;
-    if !output.status.success() {
-        return None;
+fn pick_label(toplevels: &[Toplevel]) -> String {
+    let active = toplevels.iter().find(|t| t.activated);
+    match active {
+        Some(t) if !t.title.trim().is_empty() => t.title.clone(),
+        Some(t) => short_app_id(&t.app_id),
+        None => String::from("·"),
     }
-    let raw = String::from_utf8_lossy(&output.stdout);
-    let trimmed = raw.trim();
-    if trimmed.is_empty() || trimmed == "Desktop" {
-        None
-    } else {
-        Some(trimmed.to_string())
+}
+
+fn short_app_id(app_id: &str) -> String {
+    if app_id.is_empty() {
+        return String::from("·");
     }
+    app_id.rsplit('.').next().unwrap_or(app_id).to_string()
 }

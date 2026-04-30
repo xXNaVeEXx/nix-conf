@@ -45,7 +45,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(wl_surface: &WlSurface, width: u32, height: u32) -> Result<Self> {
+    pub fn new(
+        wl_surface: &WlSurface,
+        width: u32,
+        height: u32,
+        build_ui: impl FnOnce(u32, u32) -> Ui,
+    ) -> Result<Self> {
         let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
@@ -140,7 +145,7 @@ impl Renderer {
         .map_err(|e| anyhow!("vello renderer init: {e}"))?;
 
         let blitter = TextureBlitter::new(&device, format);
-        let ui = Ui::new(config.width, config.height);
+        let ui = build_ui(config.width, config.height);
 
         Ok(Self {
             _instance: instance,

@@ -3,12 +3,16 @@ use blitz_dom::{Document, DocumentConfig};
 use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
 use dioxus_native_dom::DioxusDocument;
+use std::any::Any;
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 use tokio::runtime::Runtime;
 use vello::Scene;
 
+mod dock_app;
 mod widgets;
+
+pub use dock_app::DockApp;
 
 /// Holds the Dioxus VirtualDom + blitz-dom Document plus the tokio runtime
 /// that drives async hooks (`use_future`, intervals, etc.). Single-threaded —
@@ -53,7 +57,29 @@ impl Wake for DirtyWaker {
 }
 
 impl Ui {
-    pub fn new(width: u32, height: u32) -> Self {
+    /// Convenience constructor for the bar. Takes the toplevel-watch receiver
+    /// so the WindowTitle widget can subscribe.
+    pub fn new_bar(
+        width: u32,
+        height: u32,
+        toplevel_rx: tokio::sync::watch::Receiver<Vec<crate::wayland::Toplevel>>,
+    ) -> Self {
+        Self::new(
+            width,
+            height,
+            App,
+            vec![Box::new(toplevel_rx) as Box<dyn Any>],
+        )
+    }
+
+    /// General constructor: build a Ui rooted at `root`, with `contexts` made
+    /// available to descendant components via `use_context::<T>()`.
+    pub fn new(
+        width: u32,
+        height: u32,
+        root: fn() -> Element,
+        contexts: Vec<Box<dyn Any>>,
+    ) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_time()
             .enable_io()
@@ -64,7 +90,10 @@ impl Ui {
         // hooks find a runtime to spawn into.
         let _guard = runtime.enter();
 
-        let vdom = VirtualDom::new(App);
+        let mut vdom = VirtualDom::new(root);
+        for ctx in contexts {
+            vdom.insert_any_root_context(ctx);
+        }
         let mut doc = DioxusDocument::new(
             vdom,
             DocumentConfig {

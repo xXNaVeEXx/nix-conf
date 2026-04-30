@@ -27,10 +27,11 @@ use wayland_protocols_wlr::foreign_toplevel::v1::client::{
     zwlr_foreign_toplevel_manager_v1::ZwlrForeignToplevelManagerV1,
 };
 
-use super::surface::BarSurface;
+use super::surface::{BarSurface, DockSurface};
 use super::toplevel::{PendingToplevel, Toplevel};
 
 const BAR_HEIGHT: u32 = 32;
+const DOCK_HEIGHT: u32 = 56;
 
 /// How often the calloop timer fires to drive Dioxus + tokio. 100ms is a
 /// compromise: low enough that signal updates feel instant, high enough to
@@ -49,6 +50,7 @@ pub struct State {
     compositor_state: CompositorState,
     layer_shell: LayerShell,
     pub bars: Vec<BarSurface>,
+    pub docks: Vec<DockSurface>,
     pub running: bool,
     pub qh: QueueHandle<State>,
     /// Foreign-toplevel manager. Held to keep the global alive; protocol
@@ -98,6 +100,7 @@ impl Shell {
             compositor_state,
             layer_shell,
             bars: Vec::new(),
+            docks: Vec::new(),
             running: true,
             qh,
             _toplevel_manager: toplevel_manager,
@@ -127,7 +130,11 @@ impl Shell {
         self.event_loop
             .dispatch(Some(Duration::from_millis(0)), &mut self.state)
             .context("initial dispatch")?;
-        info!("running with {} bar surface(s)", self.state.bars.len());
+        info!(
+            "running with {} bar(s), {} dock(s)",
+            self.state.bars.len(),
+            self.state.docks.len()
+        );
 
         while self.state.running {
             self.event_loop
@@ -165,16 +172,46 @@ impl State {
         layer.set_exclusive_zone(BAR_HEIGHT as i32);
         layer.commit();
 
-        let bar = BarSurface::new(layer);
+        let bar = BarSurface::new(layer, self.toplevel_rx.clone());
         self.bars.push(bar);
         Ok(())
     }
 
-    /// Called every TICK_INTERVAL. Drives Dioxus, renders bars whose state changed.
+    fn create_dock(&mut self, qh: &QueueHandle<Self>, output: &wl_output::WlOutput) -> Result<()> {
+        let surface = self.compositor_state.create_surface(qh);
+        let layer = self.layer_shell.create_layer_surface(
+            qh,
+            surface,
+            Layer::Top,
+            Some("dioxus-shell-dock"),
+            Some(output),
+        );
+        // Bottom-anchored, no exclusive zone — overlay style. We anchor only
+        // bottom (no left/right) so the dock sizes itself horizontally to its
+        // content; the compositor will pick the size we requested.
+        layer.set_anchor(smithay_client_toolkit::shell::wlr_layer::Anchor::BOTTOM);
+        // Width 0 means "let the compositor choose" only when paired with
+        // left+right anchors; otherwise it means we need to specify. Pick a
+        // generous width for now (Phase A static row); Phase C will resize
+        // to fit.
+        layer.set_size(800, DOCK_HEIGHT);
+        layer.set_exclusive_zone(0);
+        layer.set_margin(0, 0, 12, 0);
+        layer.commit();
+
+        let dock = DockSurface::new(layer, self.toplevel_rx.clone());
+        self.docks.push(dock);
+        Ok(())
+    }
+
+    /// Called every TICK_INTERVAL. Drives Dioxus, renders surfaces whose state changed.
     fn tick(&mut self) {
         let qh = self.qh.clone();
         for bar in &mut self.bars {
             bar.tick(&qh);
+        }
+        for dock in &mut self.docks {
+            dock.tick(&qh);
         }
     }
 
@@ -281,6 +318,9 @@ impl OutputHandler for State {
         if let Err(e) = self.create_bar(qh, &output) {
             warn!("failed to create bar for new output: {e:#}");
         }
+        if let Err(e) = self.create_dock(qh, &output) {
+            warn!("failed to create dock for new output: {e:#}");
+        }
     }
 
     fn update_output(
@@ -304,7 +344,8 @@ impl OutputHandler for State {
 impl LayerShellHandler for State {
     fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
         self.bars.retain(|b| b.surface() != layer);
-        if self.bars.is_empty() {
+        self.docks.retain(|d| d.surface() != layer);
+        if self.bars.is_empty() && self.docks.is_empty() {
             self.running = false;
         }
     }
@@ -318,14 +359,24 @@ impl LayerShellHandler for State {
         _serial: u32,
     ) {
         let (w, h) = configure.new_size;
-        let width = if w == 0 { 1920 } else { w };
-        let height = if h == 0 { BAR_HEIGHT } else { h };
         for bar in &mut self.bars {
             if bar.surface() == layer {
+                let width = if w == 0 { 1920 } else { w };
+                let height = if h == 0 { BAR_HEIGHT } else { h };
                 if let Err(e) = bar.configure(width, height) {
                     warn!("bar configure failed: {e:#}");
                 }
-                break;
+                return;
+            }
+        }
+        for dock in &mut self.docks {
+            if dock.surface() == layer {
+                let width = if w == 0 { 800 } else { w };
+                let height = if h == 0 { DOCK_HEIGHT } else { h };
+                if let Err(e) = dock.configure(width, height) {
+                    warn!("dock configure failed: {e:#}");
+                }
+                return;
             }
         }
     }
