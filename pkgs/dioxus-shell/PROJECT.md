@@ -18,9 +18,18 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 **Dioxus + Blitz integration milestone: complete.** `src/ui/mod.rs` builds a `VirtualDom` + `DioxusDocument` + `DEFAULT_CSS` + custom flexbox stylesheet, runs `initial_build()`, and per-frame calls `inner.resolve(now_secs)` + `blitz_paint::paint_scene(VelloScenePainter, doc, ...)` to populate a `vello::Scene`. The renderer hands the resulting scene to `vello::Renderer::render_to_texture`. First widget: a 32px bar with "dioxus-shell" on the left and `HH:MM:SS` on the right, both styled via `<style>` block embedded in the rsx. Verified visually.
 
-**Reactive redraw loop milestone: complete.** A `tokio::runtime::Builder::new_current_thread().enable_time()` runtime drives `use_future` hooks. `Ui::poll()` enters the runtime, `block_on(yield_now())` to advance pending tasks, then calls `DioxusDocument::poll(cx)` with a `DirtyWaker` that flips an atomic flag when any Dioxus signal fires. The clock is implemented as a `Signal<String>` updated every second by a `tokio::time::interval`. The Wayland event loop was rewritten on top of `calloop::EventLoop` with `WaylandSource` + a 100ms `Timer` that drives `Ui::poll()` and re-renders only when the dirty flag was set. Idle CPU on llvmpipe-on-Proxmox is ~4% (down from ~13% in the unconditional 60Hz draft). Verified visually: the clock ticks every second.
+**Reactive redraw loop milestone: complete.** A `tokio::runtime::Builder::new_current_thread().enable_time().enable_io()` runtime drives `use_future` hooks. `Ui::poll()` enters the runtime, `block_on(yield_now())` to advance pending tasks, then calls `DioxusDocument::poll(cx)` with a `DirtyWaker` that flips an atomic flag when any Dioxus signal fires. The Wayland event loop was rewritten on top of `calloop::EventLoop` with `WaylandSource` + a 100ms `Timer` that drives `Ui::poll()` and re-renders only when the dirty flag was set. Idle CPU on llvmpipe-on-Proxmox is ~4% (down from ~13% in the unconditional 60Hz draft).
 
-**Next milestone: a real second widget.** The clock proves the integration; now we need something with non-trivial state to validate the architecture under load. Candidates from the Quickshell port-table in this file: tag indicators (poll `mangoctl get-active-tag`), window title (poll `mangoctl get-active-window-title`), or wlan status (parse `nmcli -t`). All three exercise the same shape — a `use_future` running an external command on an interval, setting a signal, Dioxus diffing the rsx output, Blitz re-laying out, Vello re-painting only the changed regions (well — the whole bar; per-rect damage is later).
+**Multi-widget milestone: complete.** Widgets factored out under `src/ui/widgets/`. Two real reactive widgets:
+- `widgets::Clock` — `use_signal(String)` updated every second by `tokio::time::interval`.
+- `widgets::WindowTitle` — `use_future` polls `mangoctl get-active-window-title` every 500ms via `tokio::process::Command`. Diff-and-skip: signal is only `.set()` when the new value differs, so most polls are free. Returns `·` when the command isn't found / times out / window is `Desktop`.
+
+Two widgets at 3.4% idle CPU on llvmpipe — the architecture scales linearly with widget count. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved. The build does take ~30s incremental for a widget-only change because `dioxus-core-macro`'s rsx expansion is heavy.
+
+**Next milestone: pick another Quickshell-parity widget and port it.** The natural next ones from the original port-table:
+- `widgets::TagIndicators` — 5 little squares with active-state styling. Polls `mangoctl get-active-tag`. Exercises **conditional rsx classes** (Dioxus iterators + `if` branches in attribute lists).
+- `widgets::SystemInfo` — CPU/mem percentages. Uses the `sysinfo` crate. Exercises **periodic numeric updates** + the formatting story.
+- `widgets::Wlan` — parses `nmcli -t -f active,ssid,signal dev wifi`. Exercises **multi-field parsing** and conditional rendering (no wifi → hide cell).
 
 `mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate.
 
@@ -145,15 +154,20 @@ pkgs/dioxus-shell/
     │                             renderer.tick() → if it painted, commit. output()
     │                             returns None — TODO: side-table for multi-monitor.
     ├── ui/
-    │   └── mod.rs              — Ui struct: tokio current-thread runtime + DioxusDocument
-    │                             + DirtyFlag waker. Ui::new() enters runtime to build
-    │                             the VirtualDom (so use_future can spawn). poll() enters
-    │                             runtime, runs block_on(yield_now()) to advance tokio
-    │                             timers, then doc.poll(cx) to drive Dioxus. paint(scene,
-    │                             now_secs) emits the painted document into a vello::Scene
-    │                             via VelloScenePainter. app() uses use_future to update a
-    │                             clock Signal every second. Uses dioxus::prelude (umbrella
-    │                             crate; rsx! lives in dioxus-core-macro, re-exported).
+    │   ├── mod.rs              — Ui struct: tokio current-thread runtime + DioxusDocument
+    │   │                         + DirtyFlag waker. Ui::new() enters runtime to build the
+    │   │                         VirtualDom (so use_future can spawn). poll() enters
+    │   │                         runtime, runs block_on(yield_now()) to advance tokio
+    │   │                         timers + I/O, then doc.poll(cx) to drive Dioxus. paint()
+    │   │                         emits via VelloScenePainter. App() composes widgets in
+    │   │                         a flexbox. Uses dioxus::prelude (umbrella crate; rsx!
+    │   │                         lives in dioxus-core-macro, re-exported).
+    │   └── widgets/
+    │       ├── mod.rs          — pub use clock::Clock, window_title::WindowTitle
+    │       ├── clock.rs        — Signal<String> + 1s tokio interval
+    │       └── window_title.rs — Signal<String> + 500ms tokio::process::Command poll of
+    │                             `mangoctl get-active-window-title`. Diff-and-skip: only
+    │                             sets the signal when the value actually changes.
     └── render/
         ├── mod.rs              — pub use renderer::Renderer
         └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate
@@ -182,40 +196,44 @@ These are intentional debt; address as the relevant feature lands:
 6. **`home/gamzat.nix:45–48`** still symlinks `~/.config/quickshell` redundantly. Plan said to drop it; deferred — non-load-bearing.
 7. **wgpu chatter on llvmpipe.** Each frame logs `Device::maintain: waiting for submission index N` at INFO. Add a default `RUST_LOG` filter in `main.rs` (`dioxus_shell=info,wgpu_core=warn,wgpu_hal=warn`).
 
-## The next milestone — second real widget
+## Pattern for new widgets
 
-The clock proved the architecture. Pick one of the Quickshell port-table widgets to validate it under non-toy load. All three follow the same shape:
+Both existing widgets follow the same shape; copy it.
 
 ```rust
-// src/ui/widgets/window_title.rs
-fn window_title() -> Element {
-    let title = use_signal(|| String::new());
-    use_future(move || {
-        let mut title = title;
-        async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(500));
-            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-            loop {
-                interval.tick().await;
-                if let Ok(out) = tokio::process::Command::new("mangoctl")
-                    .arg("get-active-window-title")
-                    .output().await
-                {
-                    let new = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if title.read().as_str() != new.as_str() {
-                        title.set(new);
-                    }
-                }
+// src/ui/widgets/<widget>.rs
+use dioxus::prelude::*;
+use std::time::Duration;
+use tokio::time::{interval, MissedTickBehavior};
+
+#[component]
+pub fn YourWidget() -> Element {
+    let mut value = use_signal(|| String::new()); // or whatever type
+
+    use_future(move || async move {
+        let mut interval = interval(Duration::from_millis(500));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            let new = fetch().await; // tokio::process::Command, tokio::fs, etc.
+            // Diff-and-skip — only setting the signal when the value differs
+            // keeps idle CPU low. Without this, every tick wakes the VirtualDom
+            // and triggers a full Vello re-render.
+            if *value.read() != new {
+                value.set(new);
             }
         }
     });
-    rsx!(div { class: "window-title", "{title}" })
+
+    rsx!("{value}")
 }
 ```
 
-Order: window-title is the cheapest validation (single string, low update rate, no parsing). After that the natural sequence is system info (`/proc/stat` parsing, sysinfo crate), wlan (`nmcli -t` parsing), tag indicators (5 little squares with active-state styling). Each one stresses a slightly different part: process-spawning, file-reading, parsing, multi-element rsx with conditional classes.
+Then in `src/ui/widgets/mod.rs`: `mod your_widget; pub use your_widget::YourWidget;`. In `src/ui/mod.rs`'s `App()` rsx, drop in `widgets::YourWidget {}`.
 
-**Watch for**: `tokio::process::Command` requires the `process` feature. `tokio::fs` requires `fs`. Add to `Cargo.toml` only when actually used. Keep the feature set tight to keep build times reasonable (current build is ~3min cold).
+**Cargo features**: `tokio::process::Command` needs `["process", "io-util"]`. `tokio::fs::*` needs `"fs"`. `tokio::net::*` needs `"net"`. Keep the feature set tight to keep build times reasonable (~30s incremental for a widget change; ~3min cold).
+
+**CSS layout**: edit `STYLES` in `src/ui/mod.rs`. The flexbox row already supports a `flex: 1 1 auto; min-width: 0;` ellipsis-truncating left cell — copy that pattern for any expanding cell. For multi-element widgets, give them their own class and a `.bar > .your-widget` selector.
 
 ## Critical files for the next session
 

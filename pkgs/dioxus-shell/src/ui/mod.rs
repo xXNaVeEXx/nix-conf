@@ -1,13 +1,14 @@
 use anyrender_vello::VelloScenePainter;
 use blitz_dom::{Document, DocumentConfig};
 use blitz_traits::shell::{ColorScheme, Viewport};
-use chrono::Local;
 use dioxus::prelude::*;
 use dioxus_native_dom::DioxusDocument;
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 use tokio::runtime::Runtime;
 use vello::Scene;
+
+mod widgets;
 
 /// Holds the Dioxus VirtualDom + blitz-dom Document plus the tokio runtime
 /// that drives async hooks (`use_future`, intervals, etc.). Single-threaded —
@@ -32,8 +33,7 @@ impl DirtyFlag {
     }
 
     pub fn take(&self) -> bool {
-        self.0
-            .swap(false, std::sync::atomic::Ordering::AcqRel)
+        self.0.swap(false, std::sync::atomic::Ordering::AcqRel)
     }
 
     fn set(&self) {
@@ -56,14 +56,15 @@ impl Ui {
     pub fn new(width: u32, height: u32) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_time()
+            .enable_io()
             .build()
             .expect("build tokio runtime");
 
-        // Enter the runtime while constructing the VirtualDom so use_future hooks
-        // inside `app()` find a runtime to spawn into.
+        // Enter the runtime while constructing the VirtualDom so use_future
+        // hooks find a runtime to spawn into.
         let _guard = runtime.enter();
 
-        let vdom = VirtualDom::new(app);
+        let vdom = VirtualDom::new(App);
         let mut doc = DioxusDocument::new(
             vdom,
             DocumentConfig {
@@ -104,9 +105,8 @@ impl Ui {
         self.dirty.set();
     }
 
-    /// Poll Dioxus + drive the tokio runtime. Call before painting whenever
-    /// the dirty flag is set or a `wl_surface::frame` callback fires. Returns
-    /// true if the document changed (should re-paint).
+    /// Poll Dioxus + drive the tokio runtime. Returns true if the document
+    /// changed (caller should re-paint).
     pub fn poll(&mut self) -> bool {
         let _guard = self.runtime.enter();
 
@@ -116,9 +116,7 @@ impl Ui {
         self.runtime
             .block_on(async { tokio::task::yield_now().await });
 
-        let mut cx = Context::from_waker(&self.waker);
-        // DioxusDocument::poll returns true if it ran render_immediate and the
-        // DOM may have mutations. False = vdom is idle.
+        let cx = Context::from_waker(&self.waker);
         // `TaskContext` in blitz-dom is just an alias for std::task::Context.
         self.doc.poll(Some(cx))
     }
@@ -131,37 +129,19 @@ impl Ui {
     }
 }
 
-fn app() -> Element {
-    let clock = use_signal(current_time_string);
-
-    // Tick the clock once per second using a tokio interval. The signal set
-    // wakes the VirtualDom; our DirtyWaker flips the flag so the event loop
-    // knows to redraw.
-    use_future(move || {
-        let mut clock = clock;
-        async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-            // First tick fires immediately; skip it (signal already initialized).
-            interval.tick().await;
-            loop {
-                interval.tick().await;
-                clock.set(current_time_string());
-            }
-        }
-    });
-
+#[component]
+fn App() -> Element {
     rsx! {
         style { {STYLES} }
         div { class: "bar",
-            div { class: "left", "dioxus-shell" }
-            div { class: "right", "{clock}" }
+            div { class: "left",
+                widgets::WindowTitle {}
+            }
+            div { class: "right",
+                widgets::Clock {}
+            }
         }
     }
-}
-
-fn current_time_string() -> String {
-    Local::now().format("%H:%M:%S").to_string()
 }
 
 const STYLES: &str = "
@@ -179,7 +159,18 @@ body {
   align-items: center;
   padding: 0 12px;
   height: 100%;
+  gap: 16px;
 }
-.left { color: rgb(140, 160, 220); }
-.right { color: rgb(220, 220, 230); }
+.left {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgb(200, 210, 230);
+}
+.right {
+  flex: 0 0 auto;
+  color: rgb(220, 220, 230);
+}
 ";
