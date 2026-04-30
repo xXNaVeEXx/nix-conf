@@ -10,9 +10,12 @@ use tokio::runtime::Runtime;
 use vello::Scene;
 
 mod dock_app;
+mod icons;
+mod net_provider;
 mod widgets;
 
 pub use dock_app::DockApp;
+pub use icons::data_url as icon_data_url;
 
 /// Holds the Dioxus VirtualDom + blitz-dom Document plus the tokio runtime
 /// that drives async hooks (`use_future`, intervals, etc.). Single-threaded —
@@ -98,6 +101,7 @@ impl Ui {
             vdom,
             DocumentConfig {
                 viewport: Some(Viewport::new(width, height, 1.0, ColorScheme::Dark)),
+                net_provider: Some(net_provider::LocalFileProvider::arc()),
                 ..Default::default()
             },
         );
@@ -147,7 +151,14 @@ impl Ui {
 
         let cx = Context::from_waker(&self.waker);
         // `TaskContext` in blitz-dom is just an alias for std::task::Context.
-        self.doc.poll(Some(cx))
+        let dioxus_changed = self.doc.poll(Some(cx));
+
+        // Drain Blitz's internal resource-load events (bytes from net_provider
+        // arrive here as DocumentEvent::ResourceLoad). Without this, fetched
+        // images never make it into the rendered scene.
+        self.doc.inner.borrow_mut().handle_messages();
+
+        dioxus_changed
     }
 
     pub fn paint(&mut self, scene: &mut Scene, now_secs: f64) {
