@@ -29,18 +29,21 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 Idle CPU on llvmpipe-on-Proxmox: 3.4% (2 widgets) → 5.6% (3) → 6.1% (4) → 6.9% (5). Per-widget cost is proportional to (poll rate × work per poll). Cheap widgets (sysinfo, slow polls) add ~0.5%; expensive widgets (process-spawning, fast polls) add ~2%. On real GPU hardware these numbers would likely be ~1× their current values. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved.
 
-**Dock milestone (Phase A + most of B): complete.** A second `wlr_layer_shell` surface anchored bottom, separate Renderer + Ui + tokio runtime mirroring the bar's structure. Renders one tile per running app with real icons (PNG via `image` crate, SVG pre-rasterized via `resvg`+`tiny-skia` because vello/blitz produces black squares for some app SVGs). Multiple windows of the same app collapse to a single tile with a count badge ("2", "3"...). Click cycles through windows of that app via `ZwlrForeignToplevelHandleV1::activate(seat)`; clicking with no running window spawns a fresh process via the `.desktop` file's `Exec=` field. Hover doesn't steal keyboard focus (`KeyboardInteractivity::None`) but click events are delivered (mango quirk: layer-shell pointer button events require *some* non-default keyboard interactivity, which we discovered after a long detour — current setting works on mango HEAD; may need re-checking on other compositors).
+**Dock milestone (Phase A + B): complete.** A second `wlr_layer_shell` surface anchored bottom, separate Renderer + Ui + tokio runtime mirroring the bar's structure. Renders one tile per running app with real icons (PNG via `image` crate, SVG pre-rasterized via `resvg`+`tiny-skia` because vello/blitz produces black squares for some app SVGs). Multiple windows of the same app collapse to a single tile with a count badge ("2", "3"...). Click cycles through windows of that app via `ZwlrForeignToplevelHandleV1::activate(seat)`; clicking with no running window spawns a fresh process via the `.desktop` file's `Exec=` field. Hover doesn't steal keyboard focus (`KeyboardInteractivity::None`) but click events are delivered (mango quirk: layer-shell pointer button events require *some* non-default keyboard interactivity, which we discovered after a long detour — current setting works on mango HEAD; may need re-checking on other compositors).
 
 **Dual-backend renderer.** `VelloBackend::Gpu` uses `vello::Renderer::render_to_texture`; `VelloBackend::Cpu` uses `anyrender_vello_cpu::VelloCpuScenePainter` → `Pixmap` → `Queue::write_texture`. Both blit through `TextureBlitter` to the swapchain. Default is GPU; `DIOXUS_SHELL_RENDER=cpu` env override forces CPU. On GPU init failure we fall back to CPU automatically. CPU path was added because vello's GPU compute shaders had issues on llvmpipe with image draws; we ultimately found that the GPU path *does* work for our use case once SVGs are pre-rasterized, but the CPU path is kept as a fallback and verified working.
 
 **`<img>` integration: solved.** This took several detours but the answer is short: (1) blitz-dom routes *every* image URL through `NetProvider::fetch` including `data:` URLs (no inline shortcut), so our provider must handle data: explicitly using the `data-url` crate, mirroring blitz-net's reference impl. (2) `inner.handle_messages()` must be drained both after `initial_build()` and after each `doc.poll()`; without it, fetched bytes never reach `special_data` on the `<img>` node. (3) SVGs render as black squares through blitz/vello — pre-rasterize to 64×64 PNG via resvg at icon-resolve time. PNG icons render correctly through both GPU and CPU paths.
 
+**Pinning + hot-reload: complete.** Reads `~/.config/dioxus-shell/dock.toml` (or `$XDG_CONFIG_HOME/dioxus-shell/dock.toml`) at startup; `notify`-watcher reloads on file change. Config is `pinned: Vec<String>` for now (more fields like `auto_hide`, `position`, `magnification` will land with Phase C). Tile order: pinned-in-config-order first, then unpinned running apps. Pinned-not-running tiles still launch on click via the `.desktop` file's `Exec=`.
+
 **What's left from the original Quickshell port:**
-1. ~~**Bottom dock**~~ — done. Pinning + auto-hide + magnification still TODO (Phase B-pin, C).
-2. **Theme switcher overlay** (Alt+Shift+T) — Phase D scope.
-3. **Keybindings cheatsheet overlay** (Alt+B) — Phase D scope.
-4. **IPC** — watch `/tmp/quickshell-command` for `toggle-theme-switcher` / `toggle-keybindings-cheatsheet`. Drives overlays. Phase D.
-5. **WayVNC widget** — only if `mySystem.remote.wayvnc = true`.
+1. ~~**Bottom dock**~~ — done. Auto-hide + magnification still TODO (Phase C).
+2. **Right-click pin/unpin** — small UX polish for managing the dock without manually editing the config.
+3. **Theme switcher overlay** (Alt+Shift+T) — Phase D scope.
+4. **Keybindings cheatsheet overlay** (Alt+B) — Phase D scope.
+5. **IPC** — watch `/tmp/quickshell-command` for `toggle-theme-switcher` / `toggle-keybindings-cheatsheet`. Drives overlays. Phase D.
+6. **WayVNC widget** — only if `mySystem.remote.wayvnc = true`.
 
 `mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate. Set `bar = "dioxus"` only after parity is reached.
 
@@ -161,6 +164,11 @@ pkgs/dioxus-shell/
 │   └── wezterm.png
 └── src/
     ├── main.rs                 — entry: env_logger init, Shell::new()?.run()
+    ├── config.rs               — Config struct (serde::Deserialize). watch_config(path)
+    │                             spawns a notify watcher on the parent dir (atomic-write
+    │                             friendly), debounces 150ms, broadcasts reloads through
+    │                             tokio::sync::watch. Failed parses keep the previous value.
+    │                             Default path: $XDG_CONFIG_HOME/dioxus-shell/dock.toml.
     ├── wayland/
     │   ├── mod.rs              — pub use shell::Shell, toplevel::Toplevel
     │   ├── shell.rs            — calloop::EventLoop driven shell. WaylandSource handles
@@ -351,26 +359,50 @@ Original plan: **3–6 focused weeks**, ~3,200–4,000 lines of Rust. Through en
 
 Total remaining: roughly 2 focused weeks. On track with the original estimate.
 
-## Next milestone — dock pinning
+## Next milestone — right-click pin/unpin
 
-Goal: persistent dock items that survive across sessions, in user-defined order, plus the click-to-launch fallback for when none of the windows are running.
+Goal: let the user manage the dock without manually editing `dock.toml`. Right-click a tile → small context menu with "Pin" or "Unpin" + "Quit" (close all windows of that app). Click outside dismisses.
 
-Plan:
-1. **Config file** at `~/.config/dioxus-shell/dock.toml`:
-   ```toml
-   pinned = ["org.wezfurlong.wezterm", "org.gnome.Nautilus", "brave-browser", "thunderbird"]
-   ```
-   Optional fields for later: `position = "bottom"`, `auto_hide = false`, `icon_size = 48`, `magnification = false`, `max_magnification = 1.6`.
-2. **Config struct + loader** — new `src/config.rs`. `Config::load()` reads + parses; missing file → empty default. Use the existing `toml = "1"` (already a transitive dep through cargo's own machinery; add as direct dep).
-3. **Hot-reload** via `notify = "8"`. Watcher runs on a background thread → sends `Config` through a `tokio::sync::watch::Sender<Config>`. State subscribes; dock subscribes via use_context.
-4. **Tile rendering**: change `DockApp` to compute a list of `DockItem { app_id, count, activated, pinned }` from (a) the live toplevel list, (b) the config's `pinned` list. Order:
-   1. Pinned apps in config order, regardless of running state.
-   2. Unpinned running apps appended in toplevel insertion order.
-5. **Click on a non-running pinned tile** → `launch_app(app_id)` (we already have this). Click on a running tile → `focus_existing` cycles, same as today.
-6. **Visual difference between pinned-running and pinned-not-running**: only running tiles show the running-dot. The icon itself is the same.
-7. **Tests**: config file parsing, hot-reload event drains a watch update, `DockItem` ordering with mixed pinned/running input.
+Two implementation paths:
 
-Solve before C (animation) and D (overlays/IPC). Pinning is a prerequisite for "user customizes the dock" which is the main UX gap.
+**A. Inline overlay menu** — render the menu *inside* the dock surface, anchored above the clicked tile. Done with rsx + a `use_signal(Option<MenuState>)` showing/hiding it. Pros: zero new Wayland plumbing. Cons: menu can't extend beyond the dock surface (and the dock is only 56px tall — tight). Limited to a single row of buttons but works for "Pin/Unpin" + "Close".
+
+**B. xdg_popup** — proper Wayland popup, can extend off the dock surface, can be larger and styled freely. SCTK 0.19 supports `LayerSurface::get_popup`. We'd need a second `Renderer` + Dioxus instance for the popup's content. Click-outside dismissal is manual (no auto-grab on layer-shell popups; we handle it in pointer events). More work but the polished answer.
+
+**Recommendation: start with A, iterate to B.** Inline overlay gets right-click pin/unpin in front of the user fast; the xdg_popup version becomes Phase D's foundation when we also need it for the theme switcher overlay anyway.
+
+For pin/unpin: read `dock.toml`, mutate `pinned`, write atomically (write to `dock.toml.tmp`, rename). The notify watcher picks it up automatically and reloads. No need for any in-memory state — file is the source of truth.
+
+Code shape:
+
+```rust
+// src/config.rs
+impl Config {
+    pub fn save_to(&self, path: &Path) -> Result<()> {
+        let parent = path.parent().context("no parent")?;
+        std::fs::create_dir_all(parent).ok();
+        let s = toml::to_string_pretty(self)?;
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, s)?;
+        std::fs::rename(&tmp, path)?;  // atomic on the same fs
+        Ok(())
+    }
+}
+
+// State
+pub fn toggle_pinned(&self, app_id: &str) {
+    let path = match Config::default_path() { Some(p) => p, None => return };
+    let mut cfg = self.config_rx.borrow().clone();
+    if let Some(i) = cfg.pinned.iter().position(|a| a == app_id) {
+        cfg.pinned.remove(i);
+    } else {
+        cfg.pinned.push(app_id.to_string());
+    }
+    let _ = cfg.save_to(&path);  // notify reload picks it up
+}
+```
+
+Phase ordering after this: C (auto-hide + magnification + animations) → xdg_popup-based overlays for D (theme switcher + keybindings cheatsheet + IPC). Auto-hide + magnification need per-pointer-motion repaints which is its own architectural piece.
 
 ## Lessons learned (worth knowing for later sessions)
 
