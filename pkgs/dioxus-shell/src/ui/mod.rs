@@ -18,6 +18,35 @@ mod widgets;
 
 pub use dock_app::DockApp;
 pub use icons::data_url as icon_data_url;
+pub use icons::exec_for;
+
+/// Launch the app identified by `app_id` by reading its desktop file's
+/// `Exec=` field and spawning a detached process. Returns Ok(()) if the
+/// process was spawned successfully (regardless of whether it later exits
+/// cleanly).
+pub fn launch_app(app_id: &str) -> anyhow::Result<()> {
+    let exec = exec_for(app_id)
+        .ok_or_else(|| anyhow::anyhow!("no Exec= for app_id {app_id}"))?;
+    let mut parts = exec.split_whitespace();
+    let bin = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("empty Exec= for app_id {app_id}"))?;
+    let args: Vec<&str> = parts.collect();
+
+    log::info!("launching {bin} {:?} for app_id {app_id}", args);
+
+    // Use std::process::Command (not tokio's) — we want fire-and-forget,
+    // not a future the runtime has to drive.
+    use std::process::{Command, Stdio};
+    Command::new(bin)
+        .args(&args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        // Don't reparent on shell exit — let init reap the child.
+        .spawn()?;
+    Ok(())
+}
 
 /// Holds the Dioxus VirtualDom + blitz-dom Document plus the tokio runtime
 /// that drives async hooks (`use_future`, intervals, etc.). Single-threaded —
@@ -170,6 +199,26 @@ impl Ui {
 
     /// GPU rendering path: emit Blitz paint into a vello::Scene that the
     /// caller will hand to vello::Renderer::render_to_texture.
+    /// Hit-test: at surface-local position (x, y), find the closest element
+    /// with a `data-app-id` attribute and return its app_id. Uses Blitz's
+    /// own hit-test, then walks parents looking for the attribute.
+    pub fn app_id_at(&self, x: f64, y: f64) -> Option<String> {
+        let inner = self.doc.inner.borrow();
+        let hit = inner.hit(x as f32, y as f32)?;
+        let mut node_id = hit.node_id;
+        loop {
+            let node = inner.get_node(node_id)?;
+            if let blitz_dom::NodeData::Element(el) = &node.data {
+                for attr in el.attrs() {
+                    if attr.name.local.as_ref() == "data-app-id" && !attr.value.is_empty() {
+                        return Some(attr.value.clone());
+                    }
+                }
+            }
+            node_id = node.parent?;
+        }
+    }
+
     pub fn paint(&mut self, scene: &mut Scene, now_secs: f64) {
         let mut inner = self.doc.inner.borrow_mut();
         inner.resolve(now_secs);

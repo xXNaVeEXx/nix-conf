@@ -226,6 +226,10 @@ impl Renderer {
         })
     }
 
+    pub fn ui(&mut self) -> &mut Ui {
+        &mut self.ui
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         let w = width.max(1);
         let h = height.max(1);

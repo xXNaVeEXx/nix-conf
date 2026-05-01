@@ -107,6 +107,9 @@ pub struct DockSurface {
     /// Stashed at creation time; consumed when the renderer is built so the
     /// dock UI can subscribe to live toplevel updates.
     pending_rx: Option<watch::Receiver<Vec<Toplevel>>>,
+    /// Last known pointer position in surface-local coords. None when the
+    /// pointer isn't on this dock.
+    pointer_pos: Option<(f64, f64)>,
 }
 
 impl DockSurface {
@@ -118,6 +121,35 @@ impl DockSurface {
             height: 0,
             configured: false,
             pending_rx: Some(rx),
+            pointer_pos: None,
+        }
+    }
+
+    pub fn on_pointer_motion(&mut self, x: f64, y: f64) {
+        self.pointer_pos = Some((x, y));
+    }
+
+    pub fn on_pointer_leave(&mut self) {
+        self.pointer_pos = None;
+    }
+
+    /// Click handler: hit-test which icon-tile is under the cursor and
+    /// launch the corresponding app via its desktop file's Exec= field.
+    pub fn on_left_click(&mut self, x: f64, y: f64) {
+        let Some(r) = self.renderer.as_mut() else {
+            log::warn!("on_left_click: no renderer");
+            return;
+        };
+        match r.ui().app_id_at(x, y) {
+            Some(app_id) => {
+                log::info!("hit-test at ({x}, {y}) -> {app_id}");
+                if let Err(e) = crate::ui::launch_app(&app_id) {
+                    warn!("launch_app({app_id}) failed: {e:#}");
+                }
+            }
+            None => {
+                log::info!("hit-test at ({x}, {y}) -> nothing");
+            }
         }
     }
 

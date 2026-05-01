@@ -76,6 +76,63 @@ impl IconResolver {
         result
     }
 
+    /// Find the `Exec=` command for an app_id. Same matching strategy as
+    /// `find_icon_name`. The placeholder fields (%U, %F, %u, %f, %i, %c, %k)
+    /// are stripped — they're meaningful for file-association launches but
+    /// irrelevant when launching from a dock click.
+    pub fn find_exec(&self, app_id: &str) -> Option<String> {
+        if app_id.is_empty() {
+            return None;
+        }
+        for dir in &self.applications_dirs {
+            let path = dir.join(format!("{app_id}.desktop"));
+            if path.is_file() {
+                if let Some(exec) = read_exec_field(&path) {
+                    return Some(strip_desktop_field_codes(&exec));
+                }
+            }
+        }
+        let lower_app_id = app_id.to_lowercase();
+        let mut prefix_fallback: Option<String> = None;
+        for dir in &self.applications_dirs {
+            let entries = match std::fs::read_dir(dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) != Some("desktop") {
+                    continue;
+                }
+                let entry_data = match parse_entry(&path) {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+                let section = match entry_data.section("Desktop Entry") {
+                    Some(s) => s,
+                    None => continue,
+                };
+                if let Some(wm_class) = first_attr(section.attr("StartupWMClass")) {
+                    if wm_class.eq_ignore_ascii_case(app_id) {
+                        if let Some(exec) = first_attr(section.attr("Exec")) {
+                            return Some(strip_desktop_field_codes(exec));
+                        }
+                    }
+                }
+                if prefix_fallback.is_none() {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if stem.to_lowercase() == lower_app_id {
+                            if let Some(exec) = first_attr(section.attr("Exec")) {
+                                prefix_fallback = Some(strip_desktop_field_codes(exec));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        prefix_fallback
+    }
+
     fn build_data_url(&self, app_id: &str) -> Option<String> {
         let path = self.resolve(app_id)?;
         let bytes = std::fs::read(&path).ok()?;
@@ -223,6 +280,33 @@ fn read_icon_field(path: &Path) -> Option<String> {
     first_attr(section.attr("Icon")).map(|s| s.to_string())
 }
 
+fn read_exec_field(path: &Path) -> Option<String> {
+    let entry = parse_entry(path).ok()?;
+    let section = entry.section("Desktop Entry")?;
+    first_attr(section.attr("Exec")).map(|s| s.to_string())
+}
+
+/// Strip XDG desktop-entry field codes like `%U`, `%F`, `%i`, `%c`, `%k`,
+/// `%u`, `%f`, `%d`, `%D`, `%n`, `%N`, `%v`, `%m`, and `%%` (which encodes
+/// a literal `%`). Field codes are meaningful for file-association launches
+/// — when we click the dock we don't have files to pass.
+fn strip_desktop_field_codes(exec: &str) -> String {
+    let mut out = String::with_capacity(exec.len());
+    let mut chars = exec.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            match chars.next() {
+                Some('%') => out.push('%'),
+                Some(_) => {} // skip the field code
+                None => break,
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// XDG icon theme lookup. Absolute paths in the icon-name field are returned
 /// as-is.
 fn lookup_icon_path(name: &str) -> Option<PathBuf> {
@@ -250,6 +334,10 @@ pub fn resolve(app_id: &str) -> Option<PathBuf> {
 
 pub fn data_url(app_id: &str) -> Option<String> {
     shared().data_url(app_id)
+}
+
+pub fn exec_for(app_id: &str) -> Option<String> {
+    shared().find_exec(app_id)
 }
 
 #[cfg(test)]
@@ -393,6 +481,43 @@ mod tests {
         let second = resolver.data_url("myapp");
         assert_eq!(first, second);
         assert!(first.is_some());
+    }
+
+    #[test]
+    fn strip_field_codes_drops_placeholders() {
+        assert_eq!(strip_desktop_field_codes("brave %U"), "brave");
+        assert_eq!(strip_desktop_field_codes("foo --bar %F"), "foo --bar");
+        assert_eq!(strip_desktop_field_codes("env %% literal"), "env % literal");
+        // Unknown field code: still gets stripped.
+        assert_eq!(strip_desktop_field_codes("cmd %z"), "cmd");
+        // Multiple field codes interspersed.
+        assert_eq!(strip_desktop_field_codes("a %u b %f c"), "a b c");
+        // Trailing %.
+        assert_eq!(strip_desktop_field_codes("end %"), "end");
+    }
+
+    #[test]
+    fn find_exec_filename_match() {
+        let (_tmp, resolver) = resolver_with_desktops(&[(
+            "firefox.desktop",
+            "[Desktop Entry]\nName=Firefox\nExec=firefox %U\nType=Application\n",
+        )]);
+        assert_eq!(resolver.find_exec("firefox").as_deref(), Some("firefox"));
+    }
+
+    #[test]
+    fn find_exec_startup_wm_class_match() {
+        let (_tmp, resolver) = resolver_with_desktops(&[(
+            "org.kde.konsole.desktop",
+            "[Desktop Entry]\nName=Konsole\nExec=konsole %F\nStartupWMClass=Konsole\nType=Application\n",
+        )]);
+        assert_eq!(resolver.find_exec("Konsole").as_deref(), Some("konsole"));
+    }
+
+    #[test]
+    fn find_exec_missing_app() {
+        let (_tmp, resolver) = resolver_with_desktops(&[]);
+        assert!(resolver.find_exec("nonexistent").is_none());
     }
 
     #[test]

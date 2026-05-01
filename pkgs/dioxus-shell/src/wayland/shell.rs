@@ -4,14 +4,19 @@ use calloop_wayland_source::WaylandSource;
 use log::{debug, info, warn};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
-    delegate_compositor, delegate_layer, delegate_output, delegate_registry,
+    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
+    delegate_seat,
     output::{OutputHandler, OutputState},
     reexports::client::{
-        globals::registry_queue_init, protocol::wl_output, protocol::wl_surface, Connection,
-        QueueHandle,
+        globals::registry_queue_init, protocol::wl_output, protocol::wl_pointer,
+        protocol::wl_seat, protocol::wl_surface, Connection, QueueHandle,
     },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
+    seat::{
+        pointer::{PointerEvent, PointerEventKind, PointerHandler},
+        Capability, SeatHandler, SeatState,
+    },
     shell::{
         wlr_layer::{
             Layer, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure,
@@ -49,10 +54,13 @@ pub struct State {
     output_state: OutputState,
     compositor_state: CompositorState,
     layer_shell: LayerShell,
+    seat_state: SeatState,
     pub bars: Vec<BarSurface>,
     pub docks: Vec<DockSurface>,
     pub running: bool,
     pub qh: QueueHandle<State>,
+    /// Pointers we've created. Held to keep them alive.
+    _pointers: Vec<wl_pointer::WlPointer>,
     /// Foreign-toplevel manager. Held to keep the global alive; protocol
     /// events are dispatched via the Dispatch impl in toplevel.rs.
     _toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
@@ -99,10 +107,12 @@ impl Shell {
             output_state: OutputState::new(&globals, &qh),
             compositor_state,
             layer_shell,
+            seat_state: SeatState::new(&globals, &qh),
             bars: Vec::new(),
             docks: Vec::new(),
             running: true,
             qh,
+            _pointers: Vec::new(),
             _toplevel_manager: toplevel_manager,
             toplevels: HashMap::new(),
             toplevel_tx,
@@ -186,17 +196,16 @@ impl State {
             Some("dioxus-shell-dock"),
             Some(output),
         );
-        // Bottom-anchored, no exclusive zone — overlay style. We anchor only
-        // bottom (no left/right) so the dock sizes itself horizontally to its
-        // content; the compositor will pick the size we requested.
         layer.set_anchor(smithay_client_toolkit::shell::wlr_layer::Anchor::BOTTOM);
-        // Width 0 means "let the compositor choose" only when paired with
-        // left+right anchors; otherwise it means we need to specify. Pick a
-        // generous width for now (Phase A static row); Phase C will resize
-        // to fit.
         layer.set_size(800, DOCK_HEIGHT);
         layer.set_exclusive_zone(0);
         layer.set_margin(0, 0, 12, 0);
+        // Try Exclusive interactivity. Mango's quickshell-compatible layer
+        // delivers button presses; OnDemand alone wasn't enough. Exclusive
+        // means we steal keyboard focus on click — that's fine for a dock.
+        layer.set_keyboard_interactivity(
+            smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::Exclusive,
+        );
         layer.commit();
 
         let dock = DockSurface::new(layer, self.toplevel_rx.clone());
@@ -391,10 +400,94 @@ impl ProvidesRegistryState for State {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
     }
-    registry_handlers![OutputState];
+    registry_handlers![OutputState, SeatState];
+}
+
+impl SeatHandler for State {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
+    fn new_capability(
+        &mut self,
+        _conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        if capability == Capability::Pointer {
+            match self.seat_state.get_pointer(qh, &seat) {
+                Ok(p) => {
+                    debug!("created pointer for seat");
+                    self._pointers.push(p);
+                }
+                Err(e) => warn!("failed to create pointer: {e}"),
+            }
+        }
+    }
+    fn remove_capability(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+        _capability: Capability,
+    ) {
+    }
+    fn remove_seat(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+    ) {
+    }
+}
+
+impl PointerHandler for State {
+    fn pointer_frame(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _pointer: &wl_pointer::WlPointer,
+        events: &[PointerEvent],
+    ) {
+        for event in events {
+            // Find which dock surface this pointer event landed on.
+            let dock_idx = self
+                .docks
+                .iter()
+                .position(|d| d.surface().wl_surface() == &event.surface);
+            let on_dock = dock_idx.is_some();
+            log::info!(
+                "pointer event kind={:?} on_dock={on_dock} pos={:?}",
+                event.kind,
+                event.position
+            );
+            let Some(idx) = dock_idx else {
+                continue;
+            };
+            match event.kind {
+                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => {
+                    self.docks[idx].on_pointer_motion(event.position.0, event.position.1);
+                }
+                PointerEventKind::Leave { .. } => {
+                    self.docks[idx].on_pointer_leave();
+                }
+                PointerEventKind::Press { button, .. } => {
+                    log::info!("pointer press button=0x{button:x} on dock");
+                    // BTN_LEFT = 0x110 in linux/input-event-codes.h
+                    if button == 0x110 {
+                        self.docks[idx].on_left_click(event.position.0, event.position.1);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 delegate_compositor!(State);
 delegate_output!(State);
 delegate_layer!(State);
 delegate_registry!(State);
+delegate_seat!(State);
+delegate_pointer!(State);

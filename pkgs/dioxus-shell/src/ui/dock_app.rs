@@ -53,6 +53,7 @@ fn DockTile(app_id: String, title: String, activated: bool) -> Element {
         div {
             class: if activated { "tile activated" } else { "tile" },
             title: "{label}",
+            "data-app-id": "{app_id}",
             div { class: "icon-wrap",
                 if has_icon {
                     img { class: "icon", src: "{icon_url_str}", alt: "{app_id}" }
