@@ -8,7 +8,7 @@ Replace Quickshell (~2,310 lines of QML across 24 files in `modules/desktop/conf
 
 Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar` and `quickshell` enum values. Remove Quickshell wiring only after parity.
 
-## Status (April 2026)
+## Status (May 2026)
 
 **Skeleton milestone: complete.** Bar surface created via `wlr-layer-shell`, painted via wgpu, anchored top, exclusive zone reserved. Verified visually inside MangoWC on a Proxmox VM (no GPU; falls back to llvmpipe). Currently paints a solid dark-slate rectangle and nothing else.
 
@@ -29,16 +29,20 @@ Roll out as opt-in `mySystem.desktop.bar = "dioxus"` alongside existing `waybar`
 
 Idle CPU on llvmpipe-on-Proxmox: 3.4% (2 widgets) → 5.6% (3) → 6.1% (4) → 6.9% (5). Per-widget cost is proportional to (poll rate × work per poll). Cheap widgets (sysinfo, slow polls) add ~0.5%; expensive widgets (process-spawning, fast polls) add ~2%. On real GPU hardware these numbers would likely be ~1× their current values. **Adding new widgets is now a matter of writing a `use_future` + an rsx fragment**; no Wayland/wgpu/Vello plumbing involved.
 
-**The top bar has parity with Quickshell.** What's left from the original Quickshell port:
-1. **Bottom dock** with auto-hide animation, app launcher buttons (Quickshell's `Dock.qml`, ~230 lines).
-2. **Theme switcher overlay** triggered by Alt+Shift+T (Quickshell's `ThemeSwitcher.qml` + `Themes.qml`, ~670 lines combined).
-3. **Keybindings cheatsheet overlay** triggered by Alt+B (`KeybindingsCheatsheet.qml`, 355 lines).
-4. **IPC** — watch `/tmp/quickshell-command` for `toggle-theme-switcher` / `toggle-keybindings-cheatsheet` strings to drive the overlays.
-5. **WayVNC widget** — only relevant if `mySystem.remote.wayvnc = true`. Polls `wayvncctl`. Skip unless needed.
+**Dock milestone (Phase A + most of B): complete.** A second `wlr_layer_shell` surface anchored bottom, separate Renderer + Ui + tokio runtime mirroring the bar's structure. Renders one tile per running app with real icons (PNG via `image` crate, SVG pre-rasterized via `resvg`+`tiny-skia` because vello/blitz produces black squares for some app SVGs). Multiple windows of the same app collapse to a single tile with a count badge ("2", "3"...). Click cycles through windows of that app via `ZwlrForeignToplevelHandleV1::activate(seat)`; clicking with no running window spawns a fresh process via the `.desktop` file's `Exec=` field. Hover doesn't steal keyboard focus (`KeyboardInteractivity::None`) but click events are delivered (mango quirk: layer-shell pointer button events require *some* non-default keyboard interactivity, which we discovered after a long detour — current setting works on mango HEAD; may need re-checking on other compositors).
 
-The dock is the biggest remaining piece — it needs a second layer-shell surface (anchored bottom, no exclusive zone, slide animation via `wl_surface::frame` callbacks). The overlays are similar but anchored center with `KeyboardInteractivity::Exclusive`. None of this is conceptually new — it's all "create another `BarSurface`-like struct, wire it through" — but it's significant volume of plumbing.
+**Dual-backend renderer.** `VelloBackend::Gpu` uses `vello::Renderer::render_to_texture`; `VelloBackend::Cpu` uses `anyrender_vello_cpu::VelloCpuScenePainter` → `Pixmap` → `Queue::write_texture`. Both blit through `TextureBlitter` to the swapchain. Default is GPU; `DIOXUS_SHELL_RENDER=cpu` env override forces CPU. On GPU init failure we fall back to CPU automatically. CPU path was added because vello's GPU compute shaders had issues on llvmpipe with image draws; we ultimately found that the GPU path *does* work for our use case once SVGs are pre-rasterized, but the CPU path is kept as a fallback and verified working.
 
-`mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate.
+**`<img>` integration: solved.** This took several detours but the answer is short: (1) blitz-dom routes *every* image URL through `NetProvider::fetch` including `data:` URLs (no inline shortcut), so our provider must handle data: explicitly using the `data-url` crate, mirroring blitz-net's reference impl. (2) `inner.handle_messages()` must be drained both after `initial_build()` and after each `doc.poll()`; without it, fetched bytes never reach `special_data` on the `<img>` node. (3) SVGs render as black squares through blitz/vello — pre-rasterize to 64×64 PNG via resvg at icon-resolve time. PNG icons render correctly through both GPU and CPU paths.
+
+**What's left from the original Quickshell port:**
+1. ~~**Bottom dock**~~ — done. Pinning + auto-hide + magnification still TODO (Phase B-pin, C).
+2. **Theme switcher overlay** (Alt+Shift+T) — Phase D scope.
+3. **Keybindings cheatsheet overlay** (Alt+B) — Phase D scope.
+4. **IPC** — watch `/tmp/quickshell-command` for `toggle-theme-switcher` / `toggle-keybindings-cheatsheet`. Drives overlays. Phase D.
+5. **WayVNC widget** — only if `mySystem.remote.wayvnc = true`.
+
+`mySystem.desktop.bar` defaults to `"waybar"`; the live desktop is unaffected by anything in this crate. Set `bar = "dioxus"` only after parity is reached.
 
 ## How to run
 
@@ -123,7 +127,7 @@ dioxus-core = "0.7.3"
 **`pkgs/dioxus-shell/default.nix` ALSO needs `outputHashes` entries** for every git dep that appears in `Cargo.lock` with a `git+...` source. The current set:
 
 - `blitz-dom-0.3.0-alpha.2`, `blitz-paint-0.3.0-alpha.2`, `blitz-traits-0.3.0-alpha.2`, `debug_timer-0.1.3`, `dioxus-native-dom-0.7.0`, `stylo_taffy-0.3.0-alpha.2` — all from `DioxusLabs/blitz @ 6863eac…`, hash `sha256-kwkKWbf/JGdkBX429buFJWelRCkIYdgsqDNwj+/MqtM=`.
-- `anyrender-0.8.0`, `anyrender_vello-0.8.0`, `wgpu_context-0.4.0` — all from `DioxusLabs/anyrender @ c12e3ff…`, hash `sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=`.
+- `anyrender-0.8.0`, `anyrender_vello-0.8.0`, `anyrender_vello_cpu-0.10.0`, `wgpu_context-0.4.0` — all from `DioxusLabs/anyrender @ c12e3ff…`, hash `sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=`.
 
 **When bumping the blitz/anyrender SHA**: re-prefetch with `nix shell nixpkgs#nix-prefetch-git -c nix-prefetch-git --quiet <url> --rev <sha>`, replace the SHA in `Cargo.toml`, run `cargo update`, then update the relevant `outputHashes` block in `default.nix`.
 
@@ -142,74 +146,118 @@ dioxus-core = "0.7.3"
 ```
 pkgs/dioxus-shell/
 ├── Cargo.toml                  — wgpu=28, sctk=0.19, full Dioxus/Blitz/Vello stack,
-│                                 tokio (rt+time+macros+sync), calloop, calloop-wayland-source
+│                                 anyrender_vello + anyrender_vello_cpu (dual backend),
+│                                 vello_cpu, resvg/usvg/tiny-skia (SVG → PNG),
+│                                 freedesktop_entry_parser + freedesktop-icons,
+│                                 tokio (rt+time+macros+sync+process+io-util),
+│                                 calloop, calloop-wayland-source, base64, data-url,
+│                                 wayland-protocols-wlr (foreign_toplevel client)
 ├── Cargo.lock
 ├── default.nix                 — buildRustPackage + wrapProgram + python3 (for stylo)
 ├── PROJECT.md                  — this file
+├── tests/fixtures/             — embedded real icon files used by integration tests
+│   ├── brave-browser.png
+│   ├── nautilus.svg
+│   └── wezterm.png
 └── src/
     ├── main.rs                 — entry: env_logger init, Shell::new()?.run()
     ├── wayland/
-    │   ├── mod.rs              — pub use shell::Shell
+    │   ├── mod.rs              — pub use shell::Shell, toplevel::Toplevel
     │   ├── shell.rs            — calloop::EventLoop driven shell. WaylandSource handles
     │   │                         all wayland events; a 100ms Timer drives Ui::poll() on
-    │   │                         each bar via State::tick(). frame() callback is now a
-    │   │                         no-op — calloop is the heartbeat. State holds qh so
-    │   │                         tick can pass it through.
-    │   └── surface.rs          — BarSurface: owns LayerSurface + Renderer. configure()
-    │                             initializes renderer on first call, resizes on later
-    │                             calls, paints once. tick() called from calloop timer:
-    │                             renderer.tick() → if it painted, commit. output()
-    │                             returns None — TODO: side-table for multi-monitor.
+    │   │                         each bar/dock via State::tick(). State holds bars,
+    │   │                         docks, foreign_toplevel manager + accumulator hashmap,
+    │   │                         the seat (for activate requests), and a per-app
+    │   │                         cycle_index for round-robin window cycling. SeatHandler
+    │   │                         + PointerHandler implementations dispatch click events
+    │   │                         to docks; focus_existing(app_id) advances the cycle
+    │   │                         and calls handle.activate(seat). publish_toplevels()
+    │   │                         broadcasts via tokio::sync::watch.
+    │   ├── surface.rs          — BarSurface (top, exclusive zone) and DockSurface
+    │   │                         (bottom, no exclusive zone). Both own LayerSurface +
+    │   │                         Renderer + initial toplevel watch::Receiver. configure()
+    │   │                         initializes renderer on first call. tick() drives a
+    │   │                         render if dirty. DockSurface::hit_test_app_id walks
+    │   │                         BaseDocument::hit() upward looking for data-app-id.
+    │   │                         output() returns None — TODO: multi-monitor side-table.
+    │   └── toplevel.rs         — raw zwlr_foreign_toplevel_management_v1 wiring.
+    │                             Dispatch impls accumulate title/app_id/state events
+    │                             into PendingToplevel; publish on `done`/`closed`.
+    │                             event_created_child! on the manager dispatches the
+    │                             toplevel-event-creates-handle child object.
     ├── ui/
     │   ├── mod.rs              — Ui struct: tokio current-thread runtime + DioxusDocument
-    │   │                         + DirtyFlag waker. Ui::new() enters runtime to build the
-    │   │                         VirtualDom (so use_future can spawn). poll() enters
-    │   │                         runtime, runs block_on(yield_now()) to advance tokio
-    │   │                         timers + I/O, then doc.poll(cx) to drive Dioxus. paint()
-    │   │                         emits via VelloScenePainter. App() composes widgets in
-    │   │                         a flexbox. Uses dioxus::prelude (umbrella crate; rsx!
-    │   │                         lives in dioxus-core-macro, re-exported).
+    │   │                         + DirtyFlag waker. Ui::new(width, height, root_fn,
+    │   │                         contexts) is generic over the root component, so the
+    │   │                         bar uses App and the dock uses DockApp. Contexts are
+    │   │                         insert_any_root_context'd into the VirtualDom — the
+    │   │                         dock's toplevel watch::Receiver is delivered this way.
+    │   │                         poll() drives tokio + Dioxus + drains
+    │   │                         inner.handle_messages() (critical for image loading).
+    │   │                         paint(scene, now_secs) GPU path; paint_cpu(now_secs)
+    │   │                         returns a Pixmap for the CPU path. app_id_at(x, y)
+    │   │                         hit-tests via BaseDocument::hit() then walks parents
+    │   │                         looking for data-app-id. launch_app(app_id) spawns
+    │   │                         a detached process from the .desktop file's Exec=.
+    │   ├── icons.rs             — IconResolver: app_id → desktop file → icon path,
+    │   │                         then via XDG icon theme spec to a real PNG/SVG file.
+    │   │                         Three-strategy lookup (filename, StartupWMClass,
+    │   │                         filename-stem). data_url(app_id) builds a
+    │   │                         data:image/<mime>;base64,... URL; SVGs get
+    │   │                         pre-rasterized to 64×64 PNG via resvg+tiny-skia
+    │   │                         (workaround for blitz/vello SVG paint producing
+    │   │                         black squares). exec_for(app_id) reads + cleans the
+    │   │                         Exec= field (strips %U/%F/etc field codes).
+    │   ├── net_provider.rs      — LocalFileProvider implements blitz_traits::NetProvider
+    │   │                         for both data: and file: URLs. data: uses data_url
+    │   │                         crate (mirrors blitz-net's reference impl); file:
+    │   │                         reads the disk path. Other schemes drop silently.
+    │   │                         Critical: blitz routes EVERY image URL through the
+    │   │                         NetProvider including data: — there's no inline
+    │   │                         shortcut.
+    │   ├── dock_app.rs          — Root component for the dock surface. Subscribes to
+    │   │                         the toplevel watch::Receiver via use_context; renders
+    │   │                         one DockTile per app_id (collapsing multiple windows
+    │   │                         into one tile with a count badge). Pre-rasterized
+    │   │                         icons via icon_data_url + <img>.
     │   └── widgets/
-    │       ├── mod.rs          — pub use Clock, WindowTitle, TagIndicators, SystemInfo
+    │       ├── mod.rs          — pub use Clock, WindowTitle, TagIndicators, SystemInfo, Wlan
     │       ├── clock.rs        — Signal<String> + 1s tokio interval
-    │       ├── window_title.rs — Signal<String> + 500ms `mangoctl get-active-window-title`
-    │       │                     poll via tokio::process::Command. Diff-and-skip.
-    │       ├── tag_indicators.rs — Signal<u8> + 500ms `mangoctl get-active-tag`. Renders
-    │       │                     5 dots with conditional `class: "tag-dot active"`.
+    │       ├── window_title.rs — Signal<String> sourced from foreign_toplevel watch
+    │       │                     (no mangoctl polling). Falls back to short app_id.
+    │       ├── tag_indicators.rs — Signal<u8> + 500ms `mangoctl get-active-tag`.
     │       ├── system_info.rs  — Signal<Stats> + 2s sysinfo polling (pure-Rust /proc).
-    │       │                     RefCell<System> reused across ticks (System::new is
-    │       │                     heavy). Refreshes only CPU usage + RAM (not disks/nets).
-    │       └── wlan.rs         — Signal<NetState> + 5s nmcli polling. NetState enum:
-    │                             Lan(device) / Wifi(ssid, signal) / Disconnected.
-    │                             Two nmcli calls per poll (dev list, then wifi list).
-    │                             Color class chosen by signal strength buckets.
+    │       └── wlan.rs         — Signal<NetState> + 5s nmcli polling.
     └── render/
         ├── mod.rs              — pub use renderer::Renderer
-        └── renderer.rs         — wgpu Renderer. Owns vello::Renderer, intermediate
-                                  Rgba8Unorm texture (STORAGE_BINDING|TEXTURE_BINDING),
-                                  TextureBlitter, and a Ui. tick() returns bool: polls
-                                  Dioxus, returns false fast if neither dirty flag nor
-                                  DOM mutation; otherwise renders + presents.  render()
-                                  calls ui.paint(&mut scene, elapsed_secs) → vello
-                                  render_to_texture(intermediate) → blitter.copy(intermediate
-                                  → swapchain) → present. Non-sRGB swapchain format
+        └── renderer.rs         — wgpu Renderer. Dual backend: VelloBackend::Gpu uses
+                                  vello::Renderer + render_to_texture into an Rgba8Unorm
+                                  storage texture; VelloBackend::Cpu uses Ui::paint_cpu
+                                  to get a Pixmap and Queue::write_texture to upload it
+                                  into a Rgba8Unorm copy_dst texture. Both end with
+                                  TextureBlitter::copy → swapchain → present. Default
+                                  GPU; falls back to CPU on init failure or when
+                                  DIOXUS_SHELL_RENDER=cpu. Non-sRGB swapchain format
                                   (vello does its own gamma). RawWaylandTarget bridges
                                   SCTK pointers to raw-window-handle 0.6.
 ```
 
-Roughly 700 lines of Rust now.
+Roughly 1500 lines of Rust now.
 
 ## Known gaps
 
 These are intentional debt; address as the relevant feature lands:
 
-1. **`BarSurface::output()` returns `None`.** SCTK 0.19's `LayerSurface` doesn't expose its output. Fix when multi-monitor matters: keep a `Vec<(LayerSurface, WlOutput)>` side-table in `State` instead of relying on `BarSurface::output()`.
-2. **One `Ui` per `BarSurface`, with one tokio runtime each.** Each output gets an independent Dioxus app instance + tokio runtime. For per-output state (focused window title) that's correct; for global state (clock, theme) it duplicates work. Idle cost: ~4% of one core per bar on llvmpipe; on a real GPU likely <1%. Acceptable for now; consider a shared runtime if it becomes a problem.
-3. **100ms tick rate is a compromise.** The calloop timer drives `Ui::poll` at 10Hz to advance tokio timers, regardless of whether anything actually changed. For the clock-only UI this is overkill — we only need to wake when the second-boundary fires. Optimization for later: query `tokio::time::Instant` for the next deadline and arm the calloop Timer for that instant instead of a fixed 100ms. Saves the polling-when-idle cost.
-4. **`environment.etc."xdg/dioxus-shell"` not wired.** Plan said to add it; deferred until a widget actually needs config files (theme JSON, keybindings text). Drop in `mangowc.nix` near line 502 when needed.
-5. **`xdg/quickshell-wallpapers.json`** still under that path. Generalize to `xdg/desktop-wallpapers.json` when the dioxus shell needs it.
-6. **`home/gamzat.nix:45–48`** still symlinks `~/.config/quickshell` redundantly. Plan said to drop it; deferred — non-load-bearing.
-7. **wgpu chatter on llvmpipe.** Each frame logs `Device::maintain: waiting for submission index N` at INFO. Add a default `RUST_LOG` filter in `main.rs` (`dioxus_shell=info,wgpu_core=warn,wgpu_hal=warn`).
+1. **`BarSurface::output()` / `DockSurface::output()` return `None`.** SCTK 0.19's `LayerSurface` doesn't expose its output. Fix when multi-monitor matters: keep a `Vec<(LayerSurface, WlOutput)>` side-table in `State` instead.
+2. **Two `Ui`s per output (bar + dock)**, each with its own tokio runtime + Dioxus VirtualDom + wgpu setup. For per-output state (focused window title, dock contents) that's correct; for global state (clock, theme) it duplicates work. Idle cost: ~7% of one core on llvmpipe-VM with all 5 widgets + dock; on real GPU much less. Acceptable.
+3. **100ms tick rate is a compromise.** The calloop timer drives `Ui::poll` at 10Hz to advance tokio timers, regardless of activity. Optimization for later: arm the calloop Timer for the next tokio deadline instead of a fixed 100ms.
+4. **Segfault on shutdown** (Ctrl+C sometimes crashes during cleanup). wgpu/vello/wayland drop ordering, or a tokio runtime trying to drop while a task is mid-poll. Doesn't affect normal use; should be fixed before flipping `bar = "dioxus"`.
+5. **Tile order in dock changes when windows open/close.** `BTreeMap<app_id, _>` sorts alphabetically — stable but not user-controlled. Pinning (next milestone) will address this naturally: pinned apps in user-defined order, unpinned running apps appended.
+6. **Dock surface uses `KeyboardInteractivity::None`** — works on mango HEAD, untested on other compositors. If clicks don't register on another compositor, try `OnDemand`.
+7. **`environment.etc."xdg/dioxus-shell"` not wired.** Drop in `mangowc.nix` when the shell needs config files.
+8. **`xdg/quickshell-wallpapers.json`** still under that path. Generalize to `xdg/desktop-wallpapers.json` when needed.
+9. **`home/gamzat.nix:45–48`** still symlinks `~/.config/quickshell` redundantly.
+10. **wgpu chatter on llvmpipe.** Each frame logs `Device::maintain: waiting for submission index N` at INFO. Add a default `RUST_LOG` filter (`dioxus_shell=info,wgpu_core=warn,wgpu_hal=warn`).
 
 ## Pattern for new widgets
 
@@ -250,13 +298,31 @@ Then in `src/ui/widgets/mod.rs`: `mod your_widget; pub use your_widget::YourWidg
 
 **CSS layout**: edit `STYLES` in `src/ui/mod.rs`. The flexbox row already supports a `flex: 1 1 auto; min-width: 0;` ellipsis-truncating left cell — copy that pattern for any expanding cell. For multi-element widgets, give them their own class and a `.bar > .your-widget` selector.
 
+## Image / icon rendering — quirks
+
+Lessons from the dock work that any future work touching `<img>` or icons should know:
+
+1. **`NetProvider::fetch` is the only fetch path.** blitz-dom routes every `<img>` URL through `net_provider.fetch`, including `data:` URLs. There is no inline shortcut for `data:` in blitz-dom (only in `blitz-net`'s reference impl). Our `LocalFileProvider` handles both `data:` and `file:` explicitly. Anything else returns no bytes silently.
+2. **`handle_messages()` must be drained.** Bytes delivered by `NetHandler::bytes()` arrive on the document's tx as `DocumentEvent::ResourceLoad`. Without `inner.handle_messages()` after `initial_build()` and after each `doc.poll()`, fetched bytes never reach `special_data` on the `<img>` node and `paint_scene` emits nothing for it.
+3. **SVGs render as black squares.** Blitz/vello's SVG path produces black squares for many real app icons (gnome-icons especially). Workaround: pre-rasterize SVGs to fixed-size PNGs at icon-resolve time using `resvg` + `tiny-skia`. Done in `icons.rs::build_data_url`.
+4. **CSS `border-radius` triggers NaN paths in `vello_common::flatten` on the CPU path.** Avoided by removing all `border-radius` from the dock's CSS. Probably worth filing upstream once we have a minimal repro.
+5. **Render path picks GPU by default**, falls back to CPU on `vello::Renderer::new` failure or when `DIOXUS_SHELL_RENDER=cpu`. CPU path uses `anyrender_vello_cpu::VelloCpuScenePainter` → `Pixmap` → `Queue::write_texture`. Both paths converge at `TextureBlitter::copy` → swapchain.
+6. **Test fixtures live in `tests/fixtures/`.** Real Brave / Wezterm / Nautilus icons are embedded via `include_bytes!` into integration tests so the image pipeline can be exercised in the Nix sandbox without `/run/current-system/...` access.
+
 ## Critical files for the next session
 
 - `/etc/nixos/pkgs/dioxus-shell/PROJECT.md` — this file
-- `/etc/nixos/pkgs/dioxus-shell/Cargo.toml` — version pins live here
-- `/etc/nixos/pkgs/dioxus-shell/src/render/renderer.rs` — wgpu setup; will need wgpu 28 port
-- `/etc/nixos/pkgs/dioxus-shell/src/wayland/surface.rs` — where the redraw loop lives
-- `/root/.claude/plans/can-we-change-from-inherited-sun.md` — original plan; see "Honest fit assessment" + "Migration / rollout order"
+- `/etc/nixos/pkgs/dioxus-shell/Cargo.toml` — version pins
+- `/etc/nixos/pkgs/dioxus-shell/default.nix` — outputHashes for git deps
+- `/etc/nixos/pkgs/dioxus-shell/src/wayland/shell.rs` — main State, foreign_toplevel, seat/pointer dispatch, focus_existing
+- `/etc/nixos/pkgs/dioxus-shell/src/wayland/surface.rs` — BarSurface + DockSurface lifecycle
+- `/etc/nixos/pkgs/dioxus-shell/src/wayland/toplevel.rs` — raw foreign_toplevel protocol
+- `/etc/nixos/pkgs/dioxus-shell/src/ui/dock_app.rs` — dock root component, AppGroup grouping
+- `/etc/nixos/pkgs/dioxus-shell/src/ui/icons.rs` — icon resolution, exec_for, SVG → PNG rasterizer
+- `/etc/nixos/pkgs/dioxus-shell/src/ui/net_provider.rs` — NetProvider (data: + file:)
+- `/etc/nixos/pkgs/dioxus-shell/src/ui/mod.rs` — Ui struct (dual GPU/CPU paint), launch_app, app_id_at hit-test
+- `/etc/nixos/pkgs/dioxus-shell/src/render/renderer.rs` — VelloBackend GPU/CPU dispatch
+- `/root/.claude/plans/can-we-change-from-inherited-sun.md` — original plan
 
 ## Verification checklist (after any change)
 
@@ -272,7 +338,39 @@ nix flake check --no-build                    # confirms NixOS configs still eva
 
 ## Effort estimate
 
-Per the original plan: **3–6 focused weeks** of work, ~3,200–4,000 lines of Rust. Skeleton + dep milestone (~250 lines + a *lot* of Cargo.toml/default.nix iteration) burned roughly the cheapest 10% of the budget. The Blitz/Vello *call-site* integration in milestone 2 is the highest-risk remaining piece — budget at least a week for it before declaring the architecture proven.
+Original plan: **3–6 focused weeks**, ~3,200–4,000 lines of Rust. Through end of dock click-to-launch + cycling we're at roughly 1,500 lines + 350 lines of tests, so somewhere between 30–40% of the original budget consumed. Remaining big items:
+
+- **Dock pinning + config + hot-reload** — small, ~1 day. Next milestone.
+- **Auto-hide animation** — needs frame-callback driven slide animation. ~1 day on real GPU; CPU path will be slow.
+- **Magnification on hover** — needs per-pointer-motion repaints + scale transform calculation. ~2 days.
+- **Right-click context menu via xdg_popup** — separate Blitz document, click-outside dismissal. ~2–3 days.
+- **Theme switcher overlay** — third layer-shell surface, theme JSON config. ~3 days.
+- **Keybindings cheatsheet overlay** — fourth layer-shell surface, mostly static text. ~1 day.
+- **`/tmp/quickshell-command` IPC** — `notify` watcher driving overlay toggle. ~half a day.
+- **Multi-monitor side-table** + general polish — ~1 day.
+
+Total remaining: roughly 2 focused weeks. On track with the original estimate.
+
+## Next milestone — dock pinning
+
+Goal: persistent dock items that survive across sessions, in user-defined order, plus the click-to-launch fallback for when none of the windows are running.
+
+Plan:
+1. **Config file** at `~/.config/dioxus-shell/dock.toml`:
+   ```toml
+   pinned = ["org.wezfurlong.wezterm", "org.gnome.Nautilus", "brave-browser", "thunderbird"]
+   ```
+   Optional fields for later: `position = "bottom"`, `auto_hide = false`, `icon_size = 48`, `magnification = false`, `max_magnification = 1.6`.
+2. **Config struct + loader** — new `src/config.rs`. `Config::load()` reads + parses; missing file → empty default. Use the existing `toml = "1"` (already a transitive dep through cargo's own machinery; add as direct dep).
+3. **Hot-reload** via `notify = "8"`. Watcher runs on a background thread → sends `Config` through a `tokio::sync::watch::Sender<Config>`. State subscribes; dock subscribes via use_context.
+4. **Tile rendering**: change `DockApp` to compute a list of `DockItem { app_id, count, activated, pinned }` from (a) the live toplevel list, (b) the config's `pinned` list. Order:
+   1. Pinned apps in config order, regardless of running state.
+   2. Unpinned running apps appended in toplevel insertion order.
+5. **Click on a non-running pinned tile** → `launch_app(app_id)` (we already have this). Click on a running tile → `focus_existing` cycles, same as today.
+6. **Visual difference between pinned-running and pinned-not-running**: only running tiles show the running-dot. The icon itself is the same.
+7. **Tests**: config file parsing, hot-reload event drains a watch update, `DockItem` ordering with mixed pinned/running input.
+
+Solve before C (animation) and D (overlays/IPC). Pinning is a prerequisite for "user customizes the dock" which is the main UX gap.
 
 ## Lessons learned (worth knowing for later sessions)
 

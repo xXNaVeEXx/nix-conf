@@ -108,9 +108,11 @@ When adding a new flake input that a module needs: (a) add to the input set, (b)
 
 ### `pkgs/dioxus-shell/` — in-progress Quickshell replacement
 
-A Rust desktop shell for MangoWC, built with `smithay-client-toolkit` + `wgpu` (with Dioxus + Blitz + Vello layered on top, in progress). Lives inline at `pkgs/dioxus-shell/` and exposed as `packages.x86_64-linux.dioxus-shell` from `flake.nix`. Wired into `modules/desktop/mangowc.nix` as the third `bar` enum value alongside `waybar`/`quickshell`. Default is still `"waybar"` — nothing on the live desktop changes until someone explicitly opts in.
+A Rust desktop shell for MangoWC, built with `smithay-client-toolkit` + `wgpu` + Dioxus + Blitz + Vello. Lives inline at `pkgs/dioxus-shell/` and is exposed as `packages.x86_64-linux.dioxus-shell` from `flake.nix`. Wired into `modules/desktop/mangowc.nix` as the third `bar` enum value alongside `waybar`/`quickshell`. Default is still `"waybar"` — nothing on the live desktop changes until someone explicitly opts in.
 
-**Read `pkgs/dioxus-shell/PROJECT.md` before touching this code.** It's the canonical state-of-the-port doc: what's done, what's next, the wgpu/vello/blitz version pins, why we're not using `dioxus-native`/`anyrender_vello`/`blitz-renderer-vello`, and the full integration recipe for the next milestone (clock widget). The original plan is at `/root/.claude/plans/can-we-change-from-inherited-sun.md` for context on goals and effort estimates.
+State (May 2026): top bar with 5 widgets (clock, window title, tag indicators, system info, wlan) is feature-complete. Bottom dock is feature-complete except pinning, animation polish, and right-click menus — it shows real macOS-style icons for every running app, collapses multiple windows of the same app to a single tile with a count badge, and clicks cycle through windows via foreign_toplevel `activate`. 30+ unit/integration tests cover icon resolution, the data-URL pipeline, the SVG → PNG pre-rasterizer, and the end-to-end render path.
+
+**Read `pkgs/dioxus-shell/PROJECT.md` before touching this code.** It's the canonical state doc: what's done, what's next, version pins, the dual GPU/CPU rendering paths, why we're not using `dioxus-native`/`anyrender_vello::VelloWindowRenderer`/`blitz-renderer-vello`, the `<img>` rendering quirks (NetProvider must handle `data:`, `handle_messages()` must drain, SVGs need pre-rasterization), and the next-milestone recipe. The original plan is at `/root/.claude/plans/can-we-change-from-inherited-sun.md`.
 
 ### Wallpapers and runtime configs
 
