@@ -359,9 +359,47 @@ Original plan: **3–6 focused weeks**, ~3,200–4,000 lines of Rust. Through en
 
 Total remaining: roughly 2 focused weeks. On track with the original estimate.
 
-## Next milestone — right-click pin/unpin
+## Right-click context menu — current state and next steps
 
-Goal: let the user manage the dock without manually editing `dock.toml`. Right-click a tile → small context menu with "Pin" or "Unpin" + "Quit" (close all windows of that app). Click outside dismisses.
+**Currently shipping:** right-click on a dock tile toggles whether the app is pinned in `dock.toml`. Functional but not the polished UX the user asked for.
+
+**What didn't work (avoid retrying):**
+
+1. **In-surface menu by resizing the dock layer-shell surface.** Tried growing the dock from 56px tall to 220px when the menu opens, with CSS rendering the row at the bottom and the menu in the upper transparent area. MangoWC re-positions the dock surface in unexpected ways when the size changes (the visible row appears to "jump up"); compositor-specific behavior we don't fully understand.
+
+2. **Anchor changes (BOTTOM vs BOTTOM|LEFT|RIGHT).** Same outcome — the row moves vertically as the surface size changes. Likely related to mango's layer-shell anchor interpretation.
+
+**What to do instead — `xdg_popup`:**
+
+`xdg_popup` is a Wayland-native transient surface anchored to a parent surface. SCTK 0.19 supports it for layer-shell parents via `LayerSurface::get_popup`. The popup is its own surface with its own size and position; the dock stays at 56px untouched.
+
+Implementation outline:
+1. **Bind `XdgWmBase`** in `Shell::new`: `XdgShell::bind(&globals, &qh)`. Add `xdg_shell: XdgShell` to `State`.
+2. **New `MenuPopup` struct** in a new `src/wayland/menu.rs`. Owns `Popup`, a `Renderer`, and a `Ui` (rooted at a `MenuApp` component).
+3. **Right-click handler** creates the popup:
+   ```rust
+   let positioner = XdgPositioner::new(&xdg_shell)?;
+   positioner.set_size(200, 80);
+   positioner.set_anchor_rect(tile_x, tile_y, tile_w, tile_h);  // tile bounds
+   positioner.set_anchor(Anchor::Top);
+   positioner.set_gravity(Gravity::Top);  // grow upward
+   let popup_surface = compositor_state.create_surface(qh);
+   let popup = Popup::from_surface(None, &positioner, qh, popup_surface, &xdg_shell.xdg_wm_base())?;
+   dock_layer.get_popup(popup.xdg_popup());
+   popup.wl_surface().commit();
+   // After PopupHandler::configure fires, attach a buffer (render).
+   ```
+4. **Implement `PopupHandler`** on `State`. `configure` → render the menu rsx into the popup's surface. `done` → destroy the popup (compositor dismissed it).
+5. **Pointer events on the popup surface** flow through our existing `PointerHandler::pointer_frame`. Same hit-test as the dock but with the menu's DOM. Click on a button → mutate config → destroy popup.
+6. **Click outside dismissal:** the compositor sends `popup_done` automatically when input goes elsewhere; we just need to handle it in `PopupHandler::done`.
+7. **Menu rsx**: tiny — a div with two buttons (Pin/Unpin, Close all). Use `<style>` inline. Reuse the existing `LocalFileProvider` so any future `<img>` works.
+
+Scope: ~300 lines of new code, 1-2 focused hours. The plumbing for `XdgWmBase` + `Popup` lifecycle is the bulk; the actual menu rsx is trivial.
+
+**Why this is the right path:**
+- Wayland-native transient surfaces handle positioning, dismissal, and stacking correctly across all compositors.
+- Doesn't require any modifications to the dock's existing layout/size logic.
+- Same xdg_popup machinery is needed for Phase D's overlays (theme switcher, keybindings cheatsheet) — building it once here is reused.
 
 Two implementation paths:
 
