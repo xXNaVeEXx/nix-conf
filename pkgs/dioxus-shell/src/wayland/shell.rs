@@ -323,6 +323,28 @@ impl State {
         true
     }
 
+    /// Toggle whether `app_id` is pinned in `dock.toml`. Loads the current
+    /// config, mutates pinned, and writes atomically. The notify watcher
+    /// then picks up the change and broadcasts the new config to dock UIs.
+    pub fn toggle_pinned(&self, app_id: &str) {
+        let Some(path) = Config::default_path() else {
+            warn!("toggle_pinned: no config path resolvable");
+            return;
+        };
+        let mut cfg = match Config::load_from(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("toggle_pinned: load failed ({e:#}); aborting");
+                return;
+            }
+        };
+        cfg.toggle_pinned(app_id);
+        match cfg.save_to(&path) {
+            Ok(()) => log::info!("toggled pin for {app_id} (now: {:?})", cfg.pinned),
+            Err(e) => warn!("toggle_pinned: save failed: {e:#}"),
+        }
+    }
+
     /// Drop cycle_index entries for app_ids that no longer have running
     /// windows. Keeps the map from growing unboundedly.
     fn prune_cycle_index(&mut self) {
@@ -498,7 +520,7 @@ impl LayerShellHandler for State {
         }
         for dock in &mut self.docks {
             if dock.surface() == layer {
-                let width = if w == 0 { 800 } else { w };
+                let width = if w == 0 { 1920 } else { w };
                 let height = if h == 0 { DOCK_HEIGHT } else { h };
                 if let Err(e) = dock.configure(width, height) {
                     warn!("dock configure failed: {e:#}");
@@ -506,6 +528,7 @@ impl LayerShellHandler for State {
                 return;
             }
         }
+        // unreachable for matched layers
     }
 }
 
@@ -592,15 +615,12 @@ impl PointerHandler for State {
                 }
                 PointerEventKind::Press { button, .. } => {
                     log::info!("pointer press button=0x{button:x} on dock");
-                    // BTN_LEFT = 0x110 in linux/input-event-codes.h
-                    if button == 0x110 {
-                        let pos = event.position;
-                        // Hit-test the dock to find the clicked app_id, then
-                        // try to focus an existing running window before
-                        // falling back to spawning a new one.
-                        let app_id =
-                            self.docks[idx].hit_test_app_id(pos.0, pos.1);
-                        if let Some(app_id) = app_id {
+                    let pos = event.position;
+                    let app_id = self.docks[idx].hit_test_app_id(pos.0, pos.1);
+                    let Some(app_id) = app_id else { continue };
+                    match button {
+                        // BTN_LEFT: focus existing or launch.
+                        0x110 => {
                             if self.focus_existing(&app_id) {
                                 log::info!("focused existing {app_id}");
                             } else {
@@ -612,6 +632,15 @@ impl PointerHandler for State {
                                 }
                             }
                         }
+                        // BTN_RIGHT: toggle pinned in dock.toml. A proper
+                        // popup-menu UX needs an xdg_popup or second
+                        // layer-shell surface (mango doesn't size the
+                        // dock layer-shell surface the way we expected
+                        // when we tried in-surface menu rendering). For
+                        // now this is a fast, functional UX — right-click
+                        // to add/remove from the dock.
+                        0x111 => self.toggle_pinned(&app_id),
+                        _ => {}
                     }
                 }
                 _ => {}

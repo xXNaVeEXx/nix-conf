@@ -175,7 +175,7 @@ fn short_app_id(app_id: &str) -> String {
 const STYLES: &str = "
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
-  background: rgba(18, 23, 31, 0.85);
+  background: rgba(18, 23, 31, 0.92);
   color: rgb(220, 220, 230);
   font-family: monospace;
   font-size: 11px;

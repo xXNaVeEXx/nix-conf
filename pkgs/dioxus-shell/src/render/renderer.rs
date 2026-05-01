@@ -25,9 +25,12 @@ use crate::ui::Ui;
 // vello::util::create_targets at vello-0.8.0/src/util.rs:189.
 const VELLO_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
-// Backgound color for the bar. Vello applies its own gamma; the swapchain
-// format is non-sRGB so this is the value the user sees.
-const BAR_BG: Color = Color::from_rgba8(18, 23, 31, 255);
+// Vello's base_color is the surface clear-color before any document
+// painting. We use fully transparent so each surface (bar / dock /
+// menu / overlay) gets to paint its own backdrop via CSS body styling.
+// Without this, areas not covered by the document (e.g. the upper
+// part of the dock surface during menu display) appear opaque.
+const BAR_BG: Color = Color::from_rgba8(0, 0, 0, 0);
 
 /// The Vello rendering backend chosen at startup based on the wgpu adapter.
 enum VelloBackend {
@@ -157,13 +160,30 @@ impl Renderer {
             .find(|f| matches!(f, TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm))
             .ok_or_else(|| anyhow!("surface supports neither Bgra8Unorm nor Rgba8Unorm"))?;
 
+        // Pick a transparency-capable alpha mode if the surface offers one.
+        // Without this the surface is opaque and CSS `background: transparent`
+        // shows up as black/the previous frame.
+        let alpha_mode = caps
+            .alpha_modes
+            .iter()
+            .copied()
+            .find(|m| matches!(m, wgpu::CompositeAlphaMode::PreMultiplied))
+            .or_else(|| {
+                caps.alpha_modes
+                    .iter()
+                    .copied()
+                    .find(|m| matches!(m, wgpu::CompositeAlphaMode::PostMultiplied))
+            })
+            .unwrap_or(caps.alpha_modes[0]);
+        log::debug!("surface alpha_mode: {alpha_mode:?}");
+
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format,
             width: width.max(1),
             height: height.max(1),
             present_mode: PresentMode::Fifo,
-            alpha_mode: caps.alpha_modes[0],
+            alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };

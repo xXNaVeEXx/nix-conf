@@ -15,12 +15,12 @@
 
 use anyhow::{Context, Result};
 use notify::Watcher;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::watch;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     /// App ids to pin to the dock, in display order. Pinned apps appear
@@ -51,6 +51,35 @@ impl Config {
                 .with_context(|| format!("parse {}", path.display())),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(e).with_context(|| format!("read {}", path.display())),
+        }
+    }
+
+    /// Atomically save the config to `path`: write to `path.tmp`, then
+    /// rename. Creates the parent directory if it doesn't exist. The
+    /// notify watcher will pick this up and trigger a reload.
+    pub fn save_to(&self, path: &Path) -> Result<()> {
+        let parent = path
+            .parent()
+            .with_context(|| format!("{} has no parent dir", path.display()))?;
+        std::fs::create_dir_all(parent).ok();
+        let serialized = toml::to_string_pretty(self).context("serialize config")?;
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, serialized)
+            .with_context(|| format!("write {}", tmp.display()))?;
+        std::fs::rename(&tmp, path)
+            .with_context(|| format!("rename {} -> {}", tmp.display(), path.display()))?;
+        Ok(())
+    }
+
+    /// Add `app_id` to the pinned list if absent, remove if present.
+    /// Returns true if the list was modified.
+    pub fn toggle_pinned(&mut self, app_id: &str) -> bool {
+        if let Some(i) = self.pinned.iter().position(|a| a == app_id) {
+            self.pinned.remove(i);
+            true
+        } else {
+            self.pinned.push(app_id.to_string());
+            true
         }
     }
 }
@@ -230,6 +259,52 @@ mod tests {
         // serde(default) doesn't deny unknown by default.
         let cfg = Config::load_from(&path).unwrap();
         assert_eq!(cfg.pinned, vec!["a"]);
+    }
+
+    #[test]
+    fn save_then_load_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("dock.toml");
+        let cfg = Config {
+            pinned: vec![
+                "firefox".to_string(),
+                "org.kde.konsole".to_string(),
+            ],
+        };
+        cfg.save_to(&path).unwrap();
+        let loaded = Config::load_from(&path).unwrap();
+        assert_eq!(cfg, loaded);
+    }
+
+    #[test]
+    fn save_creates_parent_dir() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("nested/sub/dir/dock.toml");
+        let cfg = Config {
+            pinned: vec!["a".to_string()],
+        };
+        cfg.save_to(&path).unwrap();
+        assert!(path.is_file());
+    }
+
+    #[test]
+    fn toggle_pinned_adds_then_removes() {
+        let mut cfg = Config::default();
+        cfg.toggle_pinned("firefox");
+        assert_eq!(cfg.pinned, vec!["firefox"]);
+        cfg.toggle_pinned("firefox");
+        assert!(cfg.pinned.is_empty());
+    }
+
+    #[test]
+    fn toggle_pinned_preserves_others() {
+        let mut cfg = Config {
+            pinned: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        };
+        cfg.toggle_pinned("b");
+        assert_eq!(cfg.pinned, vec!["a", "c"]);
+        cfg.toggle_pinned("d");
+        assert_eq!(cfg.pinned, vec!["a", "c", "d"]);
     }
 
     #[test]
