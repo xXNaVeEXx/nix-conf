@@ -133,24 +133,13 @@ impl DockSurface {
         self.pointer_pos = None;
     }
 
-    /// Click handler: hit-test which icon-tile is under the cursor and
-    /// launch the corresponding app via its desktop file's Exec= field.
-    pub fn on_left_click(&mut self, x: f64, y: f64) {
-        let Some(r) = self.renderer.as_mut() else {
-            log::warn!("on_left_click: no renderer");
-            return;
-        };
-        match r.ui().app_id_at(x, y) {
-            Some(app_id) => {
-                log::info!("hit-test at ({x}, {y}) -> {app_id}");
-                if let Err(e) = crate::ui::launch_app(&app_id) {
-                    warn!("launch_app({app_id}) failed: {e:#}");
-                }
-            }
-            None => {
-                log::info!("hit-test at ({x}, {y}) -> nothing");
-            }
-        }
+    /// Hit-test which icon-tile is under the cursor and return its app_id.
+    /// Caller decides what to do with it (focus existing or launch fresh).
+    pub fn hit_test_app_id(&mut self, x: f64, y: f64) -> Option<String> {
+        let r = self.renderer.as_mut()?;
+        let result = r.ui().app_id_at(x, y);
+        log::info!("hit-test at ({x}, {y}) -> {:?}", result);
+        result
     }
 
     pub fn surface(&self) -> &LayerSurface {

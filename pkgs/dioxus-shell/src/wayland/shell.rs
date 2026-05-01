@@ -61,6 +61,12 @@ pub struct State {
     pub qh: QueueHandle<State>,
     /// Pointers we've created. Held to keep them alive.
     _pointers: Vec<wl_pointer::WlPointer>,
+    /// Most recently bound seat. Used as the activation seat for
+    /// foreign_toplevel `activate` requests.
+    pub seat: Option<wl_seat::WlSeat>,
+    /// Per-app round-robin index for cycling through windows of an app
+    /// when its dock tile is clicked multiple times.
+    cycle_index: HashMap<String, usize>,
     /// Foreign-toplevel manager. Held to keep the global alive; protocol
     /// events are dispatched via the Dispatch impl in toplevel.rs.
     _toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
@@ -113,6 +119,8 @@ impl Shell {
             running: true,
             qh,
             _pointers: Vec::new(),
+            seat: None,
+            cycle_index: HashMap::new(),
             _toplevel_manager: toplevel_manager,
             toplevels: HashMap::new(),
             toplevel_tx,
@@ -200,11 +208,12 @@ impl State {
         layer.set_size(800, DOCK_HEIGHT);
         layer.set_exclusive_zone(0);
         layer.set_margin(0, 0, 12, 0);
-        // Try Exclusive interactivity. Mango's quickshell-compatible layer
-        // delivers button presses; OnDemand alone wasn't enough. Exclusive
-        // means we steal keyboard focus on click — that's fine for a dock.
+        // Default to None — we don't want the dock to steal keyboard focus
+        // from regular toplevels just because the cursor is hovering it.
+        // Pointer events (motion + click) are delivered regardless of
+        // keyboard interactivity per the wlr-layer-shell spec.
         layer.set_keyboard_interactivity(
-            smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::Exclusive,
+            smithay_client_toolkit::shell::wlr_layer::KeyboardInteractivity::None,
         );
         layer.commit();
 
@@ -222,6 +231,73 @@ impl State {
         for dock in &mut self.docks {
             dock.tick(&qh);
         }
+    }
+
+    /// Try to focus a running window matching `app_id`. Cycles through
+    /// multiple windows of the same app on repeated clicks. Returns true
+    /// if a matching handle was found and an `activate` request was sent.
+    pub fn focus_existing(&mut self, app_id: &str) -> bool {
+        let Some(seat) = self.seat.clone() else {
+            return false;
+        };
+        // Collect all open handles for this app_id in a stable order.
+        // HashMap iteration is unstable, so we sort by the handle's protocol
+        // ID to get a deterministic per-app ordering.
+        let mut matches: Vec<(_, _)> = self
+            .toplevels
+            .iter()
+            .filter(|(_, p)| !p.closed && p.app_id.as_deref() == Some(app_id))
+            .map(|(h, p)| (h.clone(), p.clone()))
+            .collect();
+        if matches.is_empty() {
+            return false;
+        }
+        matches.sort_by_key(|(h, _)| {
+            use wayland_client::Proxy;
+            h.id().protocol_id()
+        });
+
+        // Pick which window to focus. If the currently activated window is
+        // one of the matches, advance to the next; otherwise pick the
+        // first one that isn't already activated (so the click does
+        // something visible) — fall back to round-robin from the stored
+        // index if all are non-activated.
+        let activated_idx = matches.iter().position(|(_, p)| p.activated.unwrap_or(false));
+        let target_idx = if let Some(i) = activated_idx {
+            // Already on one of this app's windows — advance.
+            (i + 1) % matches.len()
+        } else {
+            // Resume where we left off (or start at 0).
+            let stored = self.cycle_index.get(app_id).copied().unwrap_or(0);
+            stored % matches.len()
+        };
+        self.cycle_index
+            .insert(app_id.to_string(), (target_idx + 1) % matches.len());
+
+        let (handle, pending) = &matches[target_idx];
+        if pending.minimized.unwrap_or(false) {
+            handle.unset_minimized();
+        }
+        handle.activate(&seat);
+        log::info!(
+            "focus_existing {app_id}: window {}/{}",
+            target_idx + 1,
+            matches.len()
+        );
+        true
+    }
+
+    /// Drop cycle_index entries for app_ids that no longer have running
+    /// windows. Keeps the map from growing unboundedly.
+    fn prune_cycle_index(&mut self) {
+        use std::collections::HashSet;
+        let live_app_ids: HashSet<String> = self
+            .toplevels
+            .values()
+            .filter(|p| !p.closed)
+            .filter_map(|p| p.app_id.clone())
+            .collect();
+        self.cycle_index.retain(|k, _| live_app_ids.contains(k));
     }
 
     /// Build the public snapshot Vec from the pending-handle map and broadcast
@@ -251,6 +327,7 @@ impl State {
             }
         });
         if changed {
+            self.prune_cycle_index();
             let snapshot = self.toplevel_tx.borrow();
             debug!(
                 "toplevels published: {} app(s): {:?}",
@@ -407,7 +484,9 @@ impl SeatHandler for State {
     fn seat_state(&mut self) -> &mut SeatState {
         &mut self.seat_state
     }
-    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
+    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        self.seat = Some(seat);
+    }
     fn new_capability(
         &mut self,
         _conn: &Connection,
@@ -415,6 +494,9 @@ impl SeatHandler for State {
         seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
+        if self.seat.is_none() {
+            self.seat = Some(seat.clone());
+        }
         if capability == Capability::Pointer {
             match self.seat_state.get_pointer(qh, &seat) {
                 Ok(p) => {
@@ -476,7 +558,24 @@ impl PointerHandler for State {
                     log::info!("pointer press button=0x{button:x} on dock");
                     // BTN_LEFT = 0x110 in linux/input-event-codes.h
                     if button == 0x110 {
-                        self.docks[idx].on_left_click(event.position.0, event.position.1);
+                        let pos = event.position;
+                        // Hit-test the dock to find the clicked app_id, then
+                        // try to focus an existing running window before
+                        // falling back to spawning a new one.
+                        let app_id =
+                            self.docks[idx].hit_test_app_id(pos.0, pos.1);
+                        if let Some(app_id) = app_id {
+                            if self.focus_existing(&app_id) {
+                                log::info!("focused existing {app_id}");
+                            } else {
+                                log::info!(
+                                    "no running instance of {app_id}; launching"
+                                );
+                                if let Err(e) = crate::ui::launch_app(&app_id) {
+                                    warn!("launch_app({app_id}) failed: {e:#}");
+                                }
+                            }
+                        }
                     }
                 }
                 _ => {}

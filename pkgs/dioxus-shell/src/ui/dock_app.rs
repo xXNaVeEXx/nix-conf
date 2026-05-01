@@ -23,23 +23,56 @@ pub fn DockApp() -> Element {
     });
 
     let apps_read = apps.read();
+    // Group windows by app_id: one tile per app, count badge for multi-window.
+    let groups = group_by_app_id(&apps_read);
     rsx! {
         style { {STYLES} }
         div { class: "dock",
-            for app in apps_read.iter() {
+            for group in groups.iter() {
                 DockTile {
-                    key: "{app.app_id}",
-                    app_id: app.app_id.clone(),
-                    title: app.title.clone(),
-                    activated: app.activated,
+                    key: "{group.app_id}",
+                    app_id: group.app_id.clone(),
+                    title: group.representative_title.clone(),
+                    activated: group.any_activated,
+                    count: group.count,
                 }
             }
         }
     }
 }
 
+#[derive(Clone)]
+struct AppGroup {
+    app_id: String,
+    count: usize,
+    any_activated: bool,
+    representative_title: String,
+}
+
+fn group_by_app_id(toplevels: &[Toplevel]) -> Vec<AppGroup> {
+    use std::collections::BTreeMap;
+    let mut map: BTreeMap<String, AppGroup> = BTreeMap::new();
+    for t in toplevels {
+        let entry = map.entry(t.app_id.clone()).or_insert_with(|| AppGroup {
+            app_id: t.app_id.clone(),
+            count: 0,
+            any_activated: false,
+            representative_title: String::new(),
+        });
+        entry.count += 1;
+        if t.activated {
+            entry.any_activated = true;
+            // Activated window's title is the most informative.
+            entry.representative_title = t.title.clone();
+        } else if entry.representative_title.is_empty() {
+            entry.representative_title = t.title.clone();
+        }
+    }
+    map.into_values().collect()
+}
+
 #[component]
-fn DockTile(app_id: String, title: String, activated: bool) -> Element {
+fn DockTile(app_id: String, title: String, activated: bool, count: usize) -> Element {
     let icon_url = icon_url_for(&app_id);
     let label = if title.trim().is_empty() {
         short_app_id(&app_id)
@@ -49,6 +82,7 @@ fn DockTile(app_id: String, title: String, activated: bool) -> Element {
     let icon_url_str = icon_url.unwrap_or_default();
     let has_icon = !icon_url_str.is_empty();
     let fallback_letter = short_app_id(&app_id).chars().next().unwrap_or('?').to_string();
+    let count_str = count.to_string();
     rsx! {
         div {
             class: if activated { "tile activated" } else { "tile" },
@@ -60,6 +94,9 @@ fn DockTile(app_id: String, title: String, activated: bool) -> Element {
                 }
                 if !has_icon {
                     div { class: "icon-fallback", "{fallback_letter}" }
+                }
+                if count > 1 {
+                    div { class: "count-badge", "{count_str}" }
                 }
             }
             div { class: "running-dot" }
@@ -112,10 +149,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 .icon {
   width: 40px;
   height: 40px;
+}
+.count-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: rgb(80, 160, 255);
+  color: rgb(20, 28, 40);
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .icon-fallback {
   width: 36px;
