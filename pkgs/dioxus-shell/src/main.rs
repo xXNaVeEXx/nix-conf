@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::info;
 
+mod config;
 mod render;
 mod ui;
 mod wayland;

@@ -32,6 +32,9 @@ url = "2"
 base64 = "0.22"
 data-url = "0.3"
 bytemuck = "1"
+toml = "1"
+serde = { version = "1", features = ["derive"] }
+notify = "8"
 image = { version = "0.25", default-features = false, features = ["png"] }
 resvg = { version = "0.46", default-features = false }
 usvg = { version = "0.46", default-features = false }

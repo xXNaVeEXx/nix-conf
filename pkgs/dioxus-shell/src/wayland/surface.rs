@@ -5,6 +5,7 @@ use smithay_client_toolkit::{
     shell::{wlr_layer::LayerSurface, WaylandSurface},
 };
 
+use crate::config::Config;
 use crate::render::Renderer;
 use crate::ui::{DockApp, Ui};
 use crate::wayland::shell::State;
@@ -104,23 +105,29 @@ pub struct DockSurface {
     width: u32,
     height: u32,
     configured: bool,
-    /// Stashed at creation time; consumed when the renderer is built so the
-    /// dock UI can subscribe to live toplevel updates.
-    pending_rx: Option<watch::Receiver<Vec<Toplevel>>>,
+    /// Stashed at creation time; consumed when the renderer is built so
+    /// the dock UI can subscribe to live updates.
+    pending_toplevel_rx: Option<watch::Receiver<Vec<Toplevel>>>,
+    pending_config_rx: Option<watch::Receiver<Config>>,
     /// Last known pointer position in surface-local coords. None when the
     /// pointer isn't on this dock.
     pointer_pos: Option<(f64, f64)>,
 }
 
 impl DockSurface {
-    pub fn new(layer: LayerSurface, rx: watch::Receiver<Vec<Toplevel>>) -> Self {
+    pub fn new(
+        layer: LayerSurface,
+        toplevel_rx: watch::Receiver<Vec<Toplevel>>,
+        config_rx: watch::Receiver<Config>,
+    ) -> Self {
         Self {
             layer,
             renderer: None,
             width: 0,
             height: 0,
             configured: false,
-            pending_rx: Some(rx),
+            pending_toplevel_rx: Some(toplevel_rx),
+            pending_config_rx: Some(config_rx),
             pointer_pos: None,
         }
     }
@@ -153,8 +160,12 @@ impl DockSurface {
         self.configured = true;
 
         if self.renderer.is_none() {
-            let rx = self
-                .pending_rx
+            let trx = self
+                .pending_toplevel_rx
+                .take()
+                .expect("DockSurface configured twice without a renderer");
+            let crx = self
+                .pending_config_rx
                 .take()
                 .expect("DockSurface configured twice without a renderer");
             let renderer = Renderer::new(
@@ -166,7 +177,10 @@ impl DockSurface {
                         w,
                         h,
                         DockApp,
-                        vec![Box::new(rx) as Box<dyn std::any::Any>],
+                        vec![
+                            Box::new(trx) as Box<dyn std::any::Any>,
+                            Box::new(crx) as Box<dyn std::any::Any>,
+                        ],
                     )
                 },
             )?;

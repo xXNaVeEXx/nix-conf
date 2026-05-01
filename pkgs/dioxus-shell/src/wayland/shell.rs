@@ -34,6 +34,7 @@ use wayland_protocols_wlr::foreign_toplevel::v1::client::{
 
 use super::surface::{BarSurface, DockSurface};
 use super::toplevel::{PendingToplevel, Toplevel};
+use crate::config::{self, Config};
 
 const BAR_HEIGHT: u32 = 32;
 const DOCK_HEIGHT: u32 = 56;
@@ -77,6 +78,10 @@ pub struct State {
     /// subscribe via `toplevel_rx()`.
     toplevel_tx: watch::Sender<Vec<Toplevel>>,
     toplevel_rx: watch::Receiver<Vec<Toplevel>>,
+    /// Receiver for the user's `dock.toml` config (pinned apps etc.).
+    /// The watcher thread holds the sending half; we clone this receiver
+    /// into the dock UI's Dioxus context.
+    config_rx: watch::Receiver<Config>,
 }
 
 impl Shell {
@@ -108,6 +113,32 @@ impl Shell {
 
         let (toplevel_tx, toplevel_rx) = watch::channel(Vec::new());
 
+        // Spin up the config watcher (best-effort — falls back to defaults
+        // if the path can't be determined or the watcher can't start).
+        let config_rx = match Config::default_path() {
+            Some(p) => {
+                info!("config path: {}", p.display());
+                match config::watch_config(p) {
+                    Ok(rx) => rx,
+                    Err(e) => {
+                        warn!("config watcher failed: {e:#}; using defaults");
+                        let (tx, rx) = watch::channel(Config::default());
+                        drop(tx);
+                        rx
+                    }
+                }
+            }
+            None => {
+                warn!(
+                    "no config path: neither $XDG_CONFIG_HOME nor $HOME set; \
+                     dock will use defaults (no pinned apps)"
+                );
+                let (tx, rx) = watch::channel(Config::default());
+                drop(tx);
+                rx
+            }
+        };
+
         let state = State {
             registry_state: RegistryState::new(&globals),
             output_state: OutputState::new(&globals, &qh),
@@ -125,6 +156,7 @@ impl Shell {
             toplevels: HashMap::new(),
             toplevel_tx,
             toplevel_rx,
+            config_rx,
         };
 
         Ok(Self { event_loop, state })
@@ -217,7 +249,11 @@ impl State {
         );
         layer.commit();
 
-        let dock = DockSurface::new(layer, self.toplevel_rx.clone());
+        let dock = DockSurface::new(
+            layer,
+            self.toplevel_rx.clone(),
+            self.config_rx.clone(),
+        );
         self.docks.push(dock);
         Ok(())
     }

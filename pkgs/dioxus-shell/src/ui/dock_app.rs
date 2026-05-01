@@ -1,5 +1,6 @@
 //! Root component for the dock surface.
 
+use crate::config::Config;
 use crate::ui::icon_data_url;
 use crate::wayland::Toplevel;
 use dioxus::prelude::*;
@@ -7,11 +8,13 @@ use tokio::sync::watch;
 
 #[component]
 pub fn DockApp() -> Element {
-    let rx = use_context::<watch::Receiver<Vec<Toplevel>>>();
-    let mut apps = use_signal(|| rx.borrow().clone());
+    let toplevels_rx = use_context::<watch::Receiver<Vec<Toplevel>>>();
+    let config_rx = use_context::<watch::Receiver<Config>>();
+    let mut apps = use_signal(|| toplevels_rx.borrow().clone());
+    let mut config = use_signal(|| config_rx.borrow().clone());
 
     use_future(move || {
-        let mut rx = rx.clone();
+        let mut rx = toplevels_rx.clone();
         async move {
             while rx.changed().await.is_ok() {
                 let new = rx.borrow().clone();
@@ -21,20 +24,32 @@ pub fn DockApp() -> Element {
             }
         }
     });
+    use_future(move || {
+        let mut rx = config_rx.clone();
+        async move {
+            while rx.changed().await.is_ok() {
+                let new = rx.borrow().clone();
+                if *config.read() != new {
+                    config.set(new);
+                }
+            }
+        }
+    });
 
     let apps_read = apps.read();
-    // Group windows by app_id: one tile per app, count badge for multi-window.
-    let groups = group_by_app_id(&apps_read);
+    let config_read = config.read();
+    let items = build_dock_items(&apps_read, &config_read);
     rsx! {
         style { {STYLES} }
         div { class: "dock",
-            for group in groups.iter() {
+            for item in items.iter() {
                 DockTile {
-                    key: "{group.app_id}",
-                    app_id: group.app_id.clone(),
-                    title: group.representative_title.clone(),
-                    activated: group.any_activated,
-                    count: group.count,
+                    key: "{item.app_id}",
+                    app_id: item.app_id.clone(),
+                    title: item.representative_title.clone(),
+                    activated: item.any_activated,
+                    count: item.count,
+                    pinned: item.pinned,
                 }
             }
         }
@@ -42,37 +57,74 @@ pub fn DockApp() -> Element {
 }
 
 #[derive(Clone)]
-struct AppGroup {
+struct DockItem {
     app_id: String,
+    /// Number of running windows of this app. 0 for pinned-but-not-running.
     count: usize,
     any_activated: bool,
     representative_title: String,
+    /// True if this entry comes from `config.pinned`.
+    pinned: bool,
 }
 
-fn group_by_app_id(toplevels: &[Toplevel]) -> Vec<AppGroup> {
+/// Compose the dock's tile list from running windows + the user's pinned
+/// list. Order:
+///   1. Pinned apps (from config) in config order, regardless of running state.
+///   2. Unpinned running apps appended in app_id order (stable for now;
+///      future improvement: insertion order via Toplevel arrival).
+fn build_dock_items(toplevels: &[Toplevel], config: &Config) -> Vec<DockItem> {
     use std::collections::BTreeMap;
-    let mut map: BTreeMap<String, AppGroup> = BTreeMap::new();
+
+    // Aggregate running windows by app_id.
+    let mut running: BTreeMap<String, DockItem> = BTreeMap::new();
     for t in toplevels {
-        let entry = map.entry(t.app_id.clone()).or_insert_with(|| AppGroup {
+        let entry = running.entry(t.app_id.clone()).or_insert_with(|| DockItem {
             app_id: t.app_id.clone(),
             count: 0,
             any_activated: false,
             representative_title: String::new(),
+            pinned: false,
         });
         entry.count += 1;
         if t.activated {
             entry.any_activated = true;
-            // Activated window's title is the most informative.
             entry.representative_title = t.title.clone();
         } else if entry.representative_title.is_empty() {
             entry.representative_title = t.title.clone();
         }
     }
-    map.into_values().collect()
+
+    let mut items = Vec::with_capacity(config.pinned.len() + running.len());
+    // Pinned apps first, in config order.
+    for app_id in &config.pinned {
+        if let Some(mut item) = running.remove(app_id) {
+            item.pinned = true;
+            items.push(item);
+        } else {
+            items.push(DockItem {
+                app_id: app_id.clone(),
+                count: 0,
+                any_activated: false,
+                representative_title: String::new(),
+                pinned: true,
+            });
+        }
+    }
+    // Then any running apps that weren't in the pinned list.
+    items.extend(running.into_values());
+    items
 }
 
 #[component]
-fn DockTile(app_id: String, title: String, activated: bool, count: usize) -> Element {
+fn DockTile(
+    app_id: String,
+    title: String,
+    activated: bool,
+    count: usize,
+    pinned: bool,
+) -> Element {
+    let _ = pinned;
+    let running = count > 0;
     let icon_url = icon_url_for(&app_id);
     let label = if title.trim().is_empty() {
         short_app_id(&app_id)
@@ -99,7 +151,12 @@ fn DockTile(app_id: String, title: String, activated: bool, count: usize) -> Ele
                     div { class: "count-badge", "{count_str}" }
                 }
             }
-            div { class: "running-dot" }
+            if running {
+                div { class: "running-dot" }
+            }
+            if !running {
+                div { class: "running-dot empty" }
+            }
         }
     }
 }
@@ -186,5 +243,9 @@ body {
   width: 4px;
   height: 4px;
   background: rgb(140, 200, 255);
+}
+.running-dot.empty {
+  /* Same footprint, invisible — keeps tile heights consistent. */
+  background: transparent;
 }
 ";
