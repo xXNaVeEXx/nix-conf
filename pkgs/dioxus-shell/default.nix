@@ -30,6 +30,7 @@ rustPlatform.buildRustPackage {
       # DioxusLabs/anyrender @ c12e3ffd9b50498d776cd7032b4b956c6612b5db
       "anyrender-0.8.0" = "sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=";
       "anyrender_vello-0.8.0" = "sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=";
+      "anyrender_vello_cpu-0.10.0" = "sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=";
       "wgpu_context-0.4.0" = "sha256-rNl0YxDdFCgLuF1w0gv+EvHfuz3p/b/M6Nu24FIdPXg=";
     };
   };

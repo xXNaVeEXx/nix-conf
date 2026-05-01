@@ -100,7 +100,7 @@ body {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border-radius: 8px;
+  /* border-radius removed: triggers NaN in vello_common::flatten */
 }
 .tile.activated {
   background: rgba(80, 130, 200, 0.25);
@@ -115,7 +115,6 @@ body {
 .icon {
   width: 40px;
   height: 40px;
-  object-fit: contain;
 }
 .icon-fallback {
   width: 36px;
@@ -125,7 +124,6 @@ body {
   justify-content: center;
   background: rgb(40, 50, 65);
   border: 1px solid rgb(60, 75, 95);
-  border-radius: 6px;
   color: rgb(200, 210, 230);
   font-size: 18px;
   text-transform: uppercase;
@@ -133,7 +131,6 @@ body {
 .running-dot {
   width: 4px;
   height: 4px;
-  border-radius: 2px;
   background: rgb(140, 200, 255);
 }
 ";

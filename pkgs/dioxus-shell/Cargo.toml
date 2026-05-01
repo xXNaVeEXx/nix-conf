@@ -21,6 +21,8 @@ blitz-paint = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36
 blitz-traits = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false }
 dioxus-native-dom = { git = "https://github.com/DioxusLabs/blitz", rev = "6863eac76c36a64a8926c5a71947f478c3614a64", default-features = false, features = ["system-fonts"] }
 anyrender_vello = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
+anyrender_vello_cpu = { git = "https://github.com/DioxusLabs/anyrender", branch = "main" }
+vello_cpu = "0.0.7"
 dioxus = { version = "0.7.3", default-features = false, features = ["macro", "hooks", "signals", "html"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
@@ -28,6 +30,12 @@ freedesktop_entry_parser = "2"
 freedesktop-icons = "0.4"
 url = "2"
 base64 = "0.22"
+data-url = "0.3"
+bytemuck = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+resvg = { version = "0.46", default-features = false }
+usvg = { version = "0.46", default-features = false }
+tiny-skia = "0.11"
 pollster = "0.4"
 tokio = { version = "1", features = ["rt", "time", "macros", "sync", "process", "io-util"] }
 calloop = "0.13"
@@ -35,6 +43,10 @@ calloop-wayland-source = "0.3"
 log = "0.4"
 env_logger = "0.11"
 anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [patch.crates-io]
 # Force shared crates to resolve from a single source so the cargo-vendor-dir

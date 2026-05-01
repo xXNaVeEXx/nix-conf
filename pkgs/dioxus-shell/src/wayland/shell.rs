@@ -314,13 +314,18 @@ impl OutputHandler for State {
         qh: &QueueHandle<Self>,
         output: wl_output::WlOutput,
     ) {
-        debug!("new output");
+        info!("new output detected; creating bar + dock surfaces");
         if let Err(e) = self.create_bar(qh, &output) {
             warn!("failed to create bar for new output: {e:#}");
         }
         if let Err(e) = self.create_dock(qh, &output) {
             warn!("failed to create dock for new output: {e:#}");
         }
+        info!(
+            "now have {} bar(s), {} dock(s)",
+            self.bars.len(),
+            self.docks.len()
+        );
     }
 
     fn update_output(

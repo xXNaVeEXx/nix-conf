@@ -1,4 +1,5 @@
 use anyrender_vello::VelloScenePainter;
+use anyrender_vello_cpu::VelloCpuScenePainter;
 use blitz_dom::{Document, DocumentConfig};
 use blitz_traits::shell::{ColorScheme, Viewport};
 use dioxus::prelude::*;
@@ -8,6 +9,7 @@ use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 use tokio::runtime::Runtime;
 use vello::Scene;
+use vello_cpu::{Pixmap, RenderContext};
 
 mod dock_app;
 mod icons;
@@ -106,6 +108,11 @@ impl Ui {
             },
         );
         doc.initial_build();
+        // initial_build creates the DOM and triggers any synchronous resource
+        // fetches (our LocalFileProvider serves data URLs inline). Drain the
+        // resulting ResourceLoad events so special_data is populated before
+        // the first paint.
+        doc.inner.borrow_mut().handle_messages();
 
         let dirty = Arc::new(DirtyFlag::new());
         let waker = Waker::from(Arc::new(DirtyWaker(dirty.clone())));
@@ -161,11 +168,30 @@ impl Ui {
         dioxus_changed
     }
 
+    /// GPU rendering path: emit Blitz paint into a vello::Scene that the
+    /// caller will hand to vello::Renderer::render_to_texture.
     pub fn paint(&mut self, scene: &mut Scene, now_secs: f64) {
         let mut inner = self.doc.inner.borrow_mut();
         inner.resolve(now_secs);
         let mut painter = VelloScenePainter::new(scene);
         blitz_paint::paint_scene(&mut painter, &inner, 1.0, self.width, self.height, 0, 0);
+    }
+
+    /// CPU rendering path: rasterize to a Pixmap (RGBA bytes) on the CPU.
+    /// Caller uploads the pixels to a texture. Used on llvmpipe / no-GPU
+    /// environments where Vello's GPU compute pipeline is unreliable.
+    pub fn paint_cpu(&mut self, now_secs: f64) -> Pixmap {
+        let mut inner = self.doc.inner.borrow_mut();
+        inner.resolve(now_secs);
+        let mut painter = VelloCpuScenePainter(RenderContext::new(
+            self.width as u16,
+            self.height as u16,
+        ));
+        blitz_paint::paint_scene(&mut painter, &inner, 1.0, self.width, self.height, 0, 0);
+        // Flush the render context into an RGBA pixmap.
+        let mut pixmap = Pixmap::new(self.width as u16, self.height as u16);
+        painter.0.render_to_pixmap(&mut pixmap);
+        pixmap
     }
 }
 

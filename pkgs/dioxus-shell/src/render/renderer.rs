@@ -29,15 +29,32 @@ const VELLO_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 // format is non-sRGB so this is the value the user sees.
 const BAR_BG: Color = Color::from_rgba8(18, 23, 31, 255);
 
+/// The Vello rendering backend chosen at startup based on the wgpu adapter.
+enum VelloBackend {
+    /// GPU compute path: vello::Renderer renders into an intermediate texture
+    /// that we then blit to the swapchain.
+    Gpu {
+        vello: VelloRenderer,
+        target_texture: Texture,
+        target_view: TextureView,
+    },
+    /// CPU rasterization path: vello_cpu produces a Pixmap (RGBA bytes) which
+    /// we upload to an intermediate texture, then blit to the swapchain. Used
+    /// when the wgpu adapter is software (llvmpipe etc.) where the GPU compute
+    /// path is unreliable for image rendering.
+    Cpu {
+        target_texture: Texture,
+        target_view: TextureView,
+    },
+}
+
 pub struct Renderer {
     _instance: Instance,
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
-    vello: VelloRenderer,
-    target_texture: Texture,
-    target_view: TextureView,
+    backend: VelloBackend,
     blitter: TextureBlitter,
     ui: Ui,
     started_at: Instant,
@@ -96,6 +113,28 @@ impl Renderer {
         }))
         .map_err(|e| anyhow!("no compatible wgpu adapter: {e}"))?;
 
+        // Default to the GPU path — it's faster and works on both real GPUs
+        // and software-Vulkan adapters (llvmpipe). vello_cpu is the fallback
+        // if GPU init fails.
+        //
+        // Override via DIOXUS_SHELL_RENDER env: "gpu" forces GPU, "cpu" forces
+        // vello_cpu, anything else uses the default (try GPU first).
+        let info = adapter.get_info();
+        let prefer_cpu = matches!(
+            std::env::var("DIOXUS_SHELL_RENDER")
+                .unwrap_or_default()
+                .to_lowercase()
+                .as_str(),
+            "cpu"
+        );
+        log::info!(
+            "wgpu adapter: {} ({}; type={:?}); render path: {}",
+            info.name,
+            info.driver,
+            info.device_type,
+            if prefer_cpu { "CPU (vello_cpu)" } else { "GPU (vello)" }
+        );
+
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: Some("dioxus-shell"),
@@ -130,19 +169,45 @@ impl Renderer {
         };
         surface.configure(&device, &config);
 
-        let (target_texture, target_view) =
-            create_vello_target(&device, config.width, config.height);
-
-        let vello = VelloRenderer::new(
-            &device,
-            RendererOptions {
-                use_cpu: false,
-                antialiasing_support: AaSupport::area_only(),
-                num_init_threads: NonZeroUsize::new(1),
-                pipeline_cache: None,
-            },
-        )
-        .map_err(|e| anyhow!("vello renderer init: {e}"))?;
+        let backend = if prefer_cpu {
+            // CPU path: target texture receives uploaded RGBA bytes from
+            // vello_cpu's Pixmap.
+            let (texture, view) = create_cpu_target(&device, config.width, config.height);
+            VelloBackend::Cpu {
+                target_texture: texture,
+                target_view: view,
+            }
+        } else {
+            // GPU path: try to init vello's wgpu renderer; on failure (e.g.
+            // unsupported feature on this adapter) fall back to vello_cpu.
+            let (texture, view) = create_vello_target(&device, config.width, config.height);
+            match VelloRenderer::new(
+                &device,
+                RendererOptions {
+                    use_cpu: false,
+                    antialiasing_support: AaSupport::all(),
+                    num_init_threads: NonZeroUsize::new(1),
+                    pipeline_cache: None,
+                },
+            ) {
+                Ok(vello_renderer) => VelloBackend::Gpu {
+                    vello: vello_renderer,
+                    target_texture: texture,
+                    target_view: view,
+                },
+                Err(e) => {
+                    log::warn!(
+                        "vello GPU renderer init failed ({e}); falling back to vello_cpu"
+                    );
+                    let (texture, view) =
+                        create_cpu_target(&device, config.width, config.height);
+                    VelloBackend::Cpu {
+                        target_texture: texture,
+                        target_view: view,
+                    }
+                }
+            }
+        };
 
         let blitter = TextureBlitter::new(&device, format);
         let ui = build_ui(config.width, config.height);
@@ -153,9 +218,7 @@ impl Renderer {
             device,
             queue,
             config,
-            vello,
-            target_texture,
-            target_view,
+            backend,
             blitter,
             ui,
             started_at: Instant::now(),
@@ -172,9 +235,25 @@ impl Renderer {
         self.config.width = w;
         self.config.height = h;
         self.surface.configure(&self.device, &self.config);
-        let (texture, view) = create_vello_target(&self.device, w, h);
-        self.target_texture = texture;
-        self.target_view = view;
+        match &mut self.backend {
+            VelloBackend::Gpu {
+                target_texture,
+                target_view,
+                ..
+            } => {
+                let (t, v) = create_vello_target(&self.device, w, h);
+                *target_texture = t;
+                *target_view = v;
+            }
+            VelloBackend::Cpu {
+                target_texture,
+                target_view,
+            } => {
+                let (t, v) = create_cpu_target(&self.device, w, h);
+                *target_texture = t;
+                *target_view = v;
+            }
+        }
         self.ui.resize(w, h);
     }
 
@@ -202,24 +281,63 @@ impl Renderer {
             .context("acquire surface texture")?;
         let swapchain_view = frame.texture.create_view(&TextureViewDescriptor::default());
 
-        let mut scene = Scene::new();
         let now_secs = self.started_at.elapsed().as_secs_f64();
-        self.ui.paint(&mut scene, now_secs);
 
-        self.vello
-            .render_to_texture(
-                &self.device,
-                &self.queue,
-                &scene,
-                &self.target_view,
-                &RenderParams {
-                    base_color: BAR_BG,
-                    width: self.config.width,
-                    height: self.config.height,
-                    antialiasing_method: AaConfig::Area,
-                },
-            )
-            .map_err(|e| anyhow!("vello render_to_texture: {e}"))?;
+        let target_view = match &mut self.backend {
+            VelloBackend::Gpu {
+                vello,
+                target_texture: _,
+                target_view,
+            } => {
+                let mut scene = Scene::new();
+                self.ui.paint(&mut scene, now_secs);
+                vello
+                    .render_to_texture(
+                        &self.device,
+                        &self.queue,
+                        &scene,
+                        target_view,
+                        &RenderParams {
+                            base_color: BAR_BG,
+                            width: self.config.width,
+                            height: self.config.height,
+                            antialiasing_method: AaConfig::Area,
+                        },
+                    )
+                    .map_err(|e| anyhow!("vello render_to_texture: {e}"))?;
+                &*target_view
+            }
+            VelloBackend::Cpu {
+                target_texture,
+                target_view,
+            } => {
+                let pixmap = self.ui.paint_cpu(now_secs);
+                // Upload the CPU-rasterized pixels into the target texture.
+                // vello_cpu's Pixmap is RGBA8 premultiplied; our target
+                // texture format is Rgba8Unorm.
+                let bytes = pixmap.data();
+                self.queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: target_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    bytemuck::cast_slice(bytes),
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(self.config.width * 4),
+                        rows_per_image: Some(self.config.height),
+                    },
+                    wgpu::Extent3d {
+                        width: self.config.width,
+                        height: self.config.height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                &*target_view
+            }
+        };
 
         let mut encoder = self
             .device
@@ -227,7 +345,7 @@ impl Renderer {
                 label: Some("vello-blit"),
             });
         self.blitter
-            .copy(&self.device, &mut encoder, &self.target_view, &swapchain_view);
+            .copy(&self.device, &mut encoder, target_view, &swapchain_view);
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         Ok(())
@@ -247,6 +365,28 @@ fn create_vello_target(device: &Device, width: u32, height: u32) -> (Texture, Te
         dimension: TextureDimension::D2,
         format: VELLO_TARGET_FORMAT,
         usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&TextureViewDescriptor::default());
+    (texture, view)
+}
+
+/// Target texture for the CPU rasterization path. Receives uploads from
+/// `Queue::write_texture`; sampled by `TextureBlitter::copy` to reach the
+/// swapchain. Different usage flags than the GPU path.
+fn create_cpu_target(device: &Device, width: u32, height: u32) -> (Texture, TextureView) {
+    let texture = device.create_texture(&TextureDescriptor {
+        label: Some("vello-cpu-target"),
+        size: Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: VELLO_TARGET_FORMAT,
+        usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
     let view = texture.create_view(&TextureViewDescriptor::default());
