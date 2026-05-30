@@ -13,12 +13,14 @@ use vello_cpu::{Pixmap, RenderContext};
 
 mod dock_app;
 mod icons;
+mod menu_app;
 mod net_provider;
 mod widgets;
 
 pub use dock_app::DockApp;
 pub use icons::data_url as icon_data_url;
 pub use icons::exec_for;
+pub use menu_app::{MenuApp, MenuContext};
 
 /// Launch the app identified by `app_id` by reading its desktop file's
 /// `Exec=` field and spawning a detached process. Returns Ok(()) if the
@@ -203,6 +205,17 @@ impl Ui {
     /// with a `data-app-id` attribute and return its app_id. Uses Blitz's
     /// own hit-test, then walks parents looking for the attribute.
     pub fn app_id_at(&self, x: f64, y: f64) -> Option<String> {
+        self.find_attr_walking_up(x, y, "data-app-id")
+    }
+
+    /// Hit-test for `data-menu-action="<verb>:<arg>"` attributes (used by
+    /// the right-click menu popup). Returns the raw attribute value,
+    /// caller parses verb + arg.
+    pub fn menu_action_at(&self, x: f64, y: f64) -> Option<String> {
+        self.find_attr_walking_up(x, y, "data-menu-action")
+    }
+
+    fn find_attr_walking_up(&self, x: f64, y: f64, attr_name: &str) -> Option<String> {
         let inner = self.doc.inner.borrow();
         let hit = inner.hit(x as f32, y as f32)?;
         let mut node_id = hit.node_id;
@@ -210,9 +223,43 @@ impl Ui {
             let node = inner.get_node(node_id)?;
             if let blitz_dom::NodeData::Element(el) = &node.data {
                 for attr in el.attrs() {
-                    if attr.name.local.as_ref() == "data-app-id" && !attr.value.is_empty() {
+                    if attr.name.local.as_ref() == attr_name && !attr.value.is_empty() {
                         return Some(attr.value.clone());
                     }
+                }
+            }
+            node_id = node.parent?;
+        }
+    }
+
+    /// For a known click position, return the rect (x, y, w, h) of the
+    /// element bearing `data-app-id` that contains the click. Used by
+    /// the right-click handler to anchor the popup over the tile rather
+    /// than the cursor.
+    pub fn tile_rect_at(&self, x: f64, y: f64) -> Option<(i32, i32, i32, i32)> {
+        let inner = self.doc.inner.borrow();
+        let hit = inner.hit(x as f32, y as f32)?;
+        let mut node_id = hit.node_id;
+        loop {
+            let node = inner.get_node(node_id)?;
+            if let blitz_dom::NodeData::Element(el) = &node.data {
+                let has_app_id = el
+                    .attrs()
+                    .iter()
+                    .any(|a| a.name.local.as_ref() == "data-app-id" && !a.value.is_empty());
+                if has_app_id {
+                    // Walk up to compute absolute position (final_layout
+                    // location is relative to the parent in some Blitz
+                    // versions). Use the document's resolved coords by
+                    // accumulating offsets.
+                    let (ax, ay) = absolute_position(&inner, node_id);
+                    let layout = node.final_layout;
+                    return Some((
+                        ax as i32,
+                        ay as i32,
+                        layout.size.width as i32,
+                        layout.size.height as i32,
+                    ));
                 }
             }
             node_id = node.parent?;
@@ -242,6 +289,25 @@ impl Ui {
         painter.0.render_to_pixmap(&mut pixmap);
         pixmap
     }
+}
+
+/// Walk up parents accumulating final_layout.location offsets to convert
+/// a node's parent-relative position into an absolute (surface-local)
+/// coordinate.
+fn absolute_position(doc: &blitz_dom::BaseDocument, node_id: usize) -> (f32, f32) {
+    let mut x = 0.0_f32;
+    let mut y = 0.0_f32;
+    let mut current = Some(node_id);
+    while let Some(id) = current {
+        if let Some(n) = doc.get_node(id) {
+            x += n.final_layout.location.x;
+            y += n.final_layout.location.y;
+            current = n.parent;
+        } else {
+            break;
+        }
+    }
+    (x, y)
 }
 
 #[component]

@@ -5,7 +5,7 @@ use log::{debug, info, warn};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
-    delegate_seat,
+    delegate_seat, delegate_xdg_popup,
     output::{OutputHandler, OutputState},
     reexports::client::{
         globals::registry_queue_init, protocol::wl_output, protocol::wl_pointer,
@@ -21,8 +21,16 @@ use smithay_client_toolkit::{
         wlr_layer::{
             Layer, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure,
         },
+        xdg::popup::{Popup, PopupConfigure, PopupHandler},
         WaylandSurface,
     },
+};
+use smithay_client_toolkit::globals::{GlobalData, ProvidesBoundGlobal};
+use smithay_client_toolkit::reexports::client::globals::{BindError, GlobalList};
+use smithay_client_toolkit::reexports::client::{Dispatch, Proxy};
+use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_positioner::XdgPositioner;
+use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_wm_base::{
+    self, XdgWmBase,
 };
 use std::collections::HashMap;
 use std::time::Duration;
@@ -32,9 +40,11 @@ use wayland_protocols_wlr::foreign_toplevel::v1::client::{
     zwlr_foreign_toplevel_manager_v1::ZwlrForeignToplevelManagerV1,
 };
 
+use super::menu::MenuPopup;
 use super::surface::{BarSurface, DockSurface};
 use super::toplevel::{PendingToplevel, Toplevel};
 use crate::config::{self, Config};
+use crate::ui::MenuContext;
 
 const BAR_HEIGHT: u32 = 32;
 const DOCK_HEIGHT: u32 = 56;
@@ -55,6 +65,10 @@ pub struct State {
     output_state: OutputState,
     compositor_state: CompositorState,
     layer_shell: LayerShell,
+    /// xdg_wm_base for popup creation. We bind this directly rather than
+    /// going through SCTK's full XdgShell to avoid pulling in the
+    /// xdg-decoration + xdg-toplevel machinery we don't use.
+    xdg_wm_base: XdgWmBaseHolder,
     seat_state: SeatState,
     pub bars: Vec<BarSurface>,
     pub docks: Vec<DockSurface>,
@@ -82,6 +96,9 @@ pub struct State {
     /// The watcher thread holds the sending half; we clone this receiver
     /// into the dock UI's Dioxus context.
     config_rx: watch::Receiver<Config>,
+    /// The currently-open right-click menu, if any. Created on right-click,
+    /// destroyed on action click or popup_done event.
+    menu: Option<MenuPopup>,
 }
 
 impl Shell {
@@ -93,6 +110,8 @@ impl Shell {
         let compositor_state =
             CompositorState::bind(&globals, &qh).context("bind wl_compositor")?;
         let layer_shell = LayerShell::bind(&globals, &qh).context("bind zwlr_layer_shell_v1")?;
+        let xdg_wm_base = XdgWmBaseHolder::bind(&globals, &qh)
+            .context("bind xdg_wm_base")?;
         // Foreign toplevel manager is optional — not all compositors implement
         // it. Log if it's missing but don't fail.
         let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> =
@@ -144,6 +163,7 @@ impl Shell {
             output_state: OutputState::new(&globals, &qh),
             compositor_state,
             layer_shell,
+            xdg_wm_base,
             seat_state: SeatState::new(&globals, &qh),
             bars: Vec::new(),
             docks: Vec::new(),
@@ -157,6 +177,7 @@ impl Shell {
             toplevel_tx,
             toplevel_rx,
             config_rx,
+            menu: None,
         };
 
         Ok(Self { event_loop, state })
@@ -267,6 +288,9 @@ impl State {
         for dock in &mut self.docks {
             dock.tick(&qh);
         }
+        if let Some(menu) = self.menu.as_mut() {
+            menu.tick();
+        }
     }
 
     /// Try to focus a running window matching `app_id`. Cycles through
@@ -321,6 +345,85 @@ impl State {
             matches.len()
         );
         true
+    }
+
+    fn open_menu(&mut self, dock_idx: usize, app_id: &str, x: f64, _y: f64) {
+        // Find the tile rect via the dock's UI hit-test.
+        let tile_rect = self.docks[dock_idx]
+            .renderer_mut()
+            .and_then(|r| r.ui().tile_rect_at(x, _y));
+        let (tx, ty, tw, th) = match tile_rect {
+            Some(r) => r,
+            None => {
+                log::debug!("open_menu: no tile rect at ({x}, {_y})");
+                return;
+            }
+        };
+        let pinned = self.config_rx.borrow().pinned.iter().any(|a| a == app_id);
+        let running = self
+            .toplevels
+            .values()
+            .any(|p| !p.closed && p.app_id.as_deref() == Some(app_id));
+        let ctx = MenuContext {
+            app_id: app_id.to_string(),
+            pinned,
+            running,
+        };
+        let layer = self.docks[dock_idx].surface().clone();
+        let popup = match MenuPopup::new(
+            &self.compositor_state,
+            &self.xdg_wm_base,
+            &layer,
+            &self.qh,
+            tx,
+            ty,
+            tw,
+            th,
+            ctx,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                warn!("open_menu: popup creation failed: {e:#}");
+                return;
+            }
+        };
+        // Replace any existing menu (drops the old one).
+        self.menu = Some(popup);
+        log::info!("opened menu for {app_id}");
+    }
+
+    fn close_menu(&mut self) {
+        if self.menu.take().is_some() {
+            log::info!("closed menu");
+        }
+    }
+
+    fn handle_menu_action(&mut self, action: &str) {
+        let (verb, arg) = match action.split_once(':') {
+            Some(p) => p,
+            None => {
+                warn!("malformed menu action: {action}");
+                return;
+            }
+        };
+        match verb {
+            "toggle-pin" => self.toggle_pinned(arg),
+            "close-all" => self.close_app(arg),
+            _ => warn!("unknown menu verb: {verb}"),
+        }
+        self.close_menu();
+    }
+
+    /// Send `close()` to every foreign_toplevel handle whose app_id matches.
+    fn close_app(&self, app_id: &str) {
+        let mut count = 0;
+        for (handle, pending) in self.toplevels.iter() {
+            if !pending.closed && pending.app_id.as_deref() == Some(app_id) {
+                handle.close();
+                count += 1;
+            }
+        }
+        log::info!("close_app({app_id}): sent close to {count} window(s)");
     }
 
     /// Toggle whether `app_id` is pinned in `dock.toml`. Loads the current
@@ -592,17 +695,40 @@ impl PointerHandler for State {
         events: &[PointerEvent],
     ) {
         for event in events {
-            // Find which dock surface this pointer event landed on.
+            // Identify which surface the event is for: dock or menu popup.
+            let on_menu = self
+                .menu
+                .as_ref()
+                .map(|m| m.popup.wl_surface() == &event.surface)
+                .unwrap_or(false);
             let dock_idx = self
                 .docks
                 .iter()
                 .position(|d| d.surface().wl_surface() == &event.surface);
-            let on_dock = dock_idx.is_some();
             log::info!(
-                "pointer event kind={:?} on_dock={on_dock} pos={:?}",
+                "pointer event kind={:?} on_menu={on_menu} on_dock={} pos={:?}",
                 event.kind,
+                dock_idx.is_some(),
                 event.position
             );
+            // Menu hit-test handled below in the press arm; if it's a
+            // motion/enter/leave on the menu, just ignore (no hover
+            // styling for now).
+            if on_menu {
+                if let PointerEventKind::Press { button, .. } = event.kind {
+                    if button == 0x110 || button == 0x111 {
+                        if let Some(menu) = self.menu.as_mut() {
+                            if let Some(action) =
+                                menu.hit_test(event.position.0, event.position.1)
+                            {
+                                self.handle_menu_action(&action);
+                                continue;
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             let Some(idx) = dock_idx else {
                 continue;
             };
@@ -632,18 +758,43 @@ impl PointerHandler for State {
                                 }
                             }
                         }
-                        // BTN_RIGHT: toggle pinned in dock.toml. A proper
-                        // popup-menu UX needs an xdg_popup or second
-                        // layer-shell surface (mango doesn't size the
-                        // dock layer-shell surface the way we expected
-                        // when we tried in-surface menu rendering). For
-                        // now this is a fast, functional UX — right-click
-                        // to add/remove from the dock.
-                        0x111 => self.toggle_pinned(&app_id),
+                        // BTN_RIGHT: open context menu popup.
+                        0x111 => {
+                            self.open_menu(idx, &app_id, pos.0, pos.1);
+                        }
                         _ => {}
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+}
+
+impl PopupHandler for State {
+    fn configure(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        popup: &Popup,
+        config: PopupConfigure,
+    ) {
+        log::debug!("popup configure: {}x{}", config.width, config.height);
+        if let Some(m) = self.menu.as_mut() {
+            if m.popup.wl_surface() == popup.wl_surface() {
+                let w = if config.width <= 0 { 200 } else { config.width as u32 };
+                let h = if config.height <= 0 { 80 } else { config.height as u32 };
+                if let Err(e) = m.configure(w, h) {
+                    warn!("menu configure failed: {e:#}");
+                }
+            }
+        }
+    }
+    fn done(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, popup: &Popup) {
+        log::debug!("popup done");
+        if let Some(m) = self.menu.as_ref() {
+            if m.popup.wl_surface() == popup.wl_surface() {
+                self.menu = None;
             }
         }
     }
@@ -655,3 +806,57 @@ delegate_layer!(State);
 delegate_registry!(State);
 delegate_seat!(State);
 delegate_pointer!(State);
+delegate_xdg_popup!(State);
+
+/// Owns the bound XdgWmBase global and answers the wm_base ping. We
+/// hand-roll this rather than using SCTK's `XdgShell` because the latter
+/// requires xdg-decoration dispatch we don't need.
+pub struct XdgWmBaseHolder {
+    inner: XdgWmBase,
+}
+
+impl XdgWmBaseHolder {
+    pub fn bind<D>(globals: &GlobalList, qh: &QueueHandle<D>) -> Result<Self, BindError>
+    where
+        D: Dispatch<XdgWmBase, GlobalData> + 'static,
+    {
+        let inner = globals.bind(qh, 1..=5, GlobalData)?;
+        Ok(Self { inner })
+    }
+}
+
+impl ProvidesBoundGlobal<XdgWmBase, 5> for XdgWmBaseHolder {
+    fn bound_global(&self) -> Result<XdgWmBase, smithay_client_toolkit::error::GlobalError> {
+        Ok(self.inner.clone())
+    }
+}
+
+impl Dispatch<XdgWmBase, GlobalData> for State {
+    fn event(
+        _state: &mut Self,
+        proxy: &XdgWmBase,
+        event: xdg_wm_base::Event,
+        _data: &GlobalData,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        // The compositor pings us periodically to verify we're alive.
+        // Pong back immediately so it doesn't kill our windows.
+        if let xdg_wm_base::Event::Ping { serial } = event {
+            proxy.pong(serial);
+        }
+    }
+}
+
+impl Dispatch<XdgPositioner, ()> for State {
+    fn event(
+        _state: &mut Self,
+        _proxy: &XdgPositioner,
+        _event: smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_positioner::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        // XdgPositioner has no events.
+    }
+}

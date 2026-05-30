@@ -1,4 +1,5 @@
-mod shell;
+mod menu;
+pub mod shell;
 mod surface;
 mod toplevel;
 

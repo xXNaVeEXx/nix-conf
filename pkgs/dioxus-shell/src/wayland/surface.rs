@@ -149,6 +149,12 @@ impl DockSurface {
         result
     }
 
+    /// Mutable accessor for the dock's renderer (for tile-rect lookup
+    /// from the right-click handler).
+    pub fn renderer_mut(&mut self) -> Option<&mut Renderer> {
+        self.renderer.as_mut()
+    }
+
 
     pub fn surface(&self) -> &LayerSurface {
         &self.layer
