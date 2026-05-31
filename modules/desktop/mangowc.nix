@@ -340,7 +340,6 @@ in
     # Enable GDM as display manager
     services.xserver.enable = true;
     services.displayManager.gdm.enable = true;
-    services.displayManager.gdm.wayland = true;
 
     # Configure XDG Desktop Portal for screen sharing (required for RustDesk)
     xdg.portal = {

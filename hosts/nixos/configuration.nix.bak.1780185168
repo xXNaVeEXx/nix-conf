@@ -206,7 +206,6 @@ in
 
     extraFlags = [
       "--node-name ${config.networking.hostName}"
-      "--kube-proxy-arg=cluster-cidr=172.16.0.0/16"
     ];
   };
 

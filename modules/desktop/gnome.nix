@@ -9,7 +9,6 @@
   config = lib.mkIf (config.mySystem.desktop.enable && config.mySystem.desktop.gnome) {
     services.xserver.enable = true;
     services.displayManager.gdm.enable = true;
-    services.displayManager.gdm.wayland = true;
     services.desktopManager.gnome.enable = true;
 
     # Wichtig für Wayland Screen Capture

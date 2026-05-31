@@ -6,13 +6,11 @@
       clang
       nodejs
       unzip
-      cargo
-      rustc
+      rustup
 
       lua-language-server
       nil
       typescript-language-server
-      rust-analyzer
       clang-tools
       vscode-langservers-extracted
     ];

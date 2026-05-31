@@ -37,7 +37,6 @@ in
     opencode
 
     # Build tools beyond the dev base
-    rustup
     dioxus-cli
   ];
 
