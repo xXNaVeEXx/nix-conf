@@ -349,7 +349,15 @@ in
     # Enable GDM as display manager
     services.xserver.enable = true;
     services.displayManager.gdm.enable = true;
-    services.displayManager.gdm.wayland = true;
+
+    # GDM's greeter is gnome-shell --gdm-mode. It needs the full GNOME systemd
+    # user wiring (org.gnome.SettingsDaemon.*, org.gnome.Shell@gdm, etc).
+    # Without services.desktopManager.gnome.enable those user units aren't
+    # registered, gnome-session-manager@gnome-login.service fails with
+    # 'protocol' (no READY=1 from gnome-shell), and GDM gives up after 6
+    # session restarts. The GNOME session itself just shows up as an extra
+    # choice next to Mango on the login screen; we still default to Mango.
+    services.desktopManager.gnome.enable = true;
 
     # Configure XDG Desktop Portal for screen sharing (required for RustDesk)
     xdg.portal = {
@@ -380,18 +388,11 @@ in
       };
     };
 
-    # Autostart xdg-desktop-portal-gnome for RemoteDesktop support
-    systemd.user.services.xdg-desktop-portal-gnome = lib.mkIf config.mySystem.desktop.mangowc {
-      description = "GNOME Desktop Portal for RemoteDesktop";
-      wantedBy = [ "graphical-session.target" ];
-      partOf = [ "graphical-session.target" ];
-      serviceConfig = {
-        Type = "dbus";
-        BusName = "org.freedesktop.impl.portal.desktop.gnome";
-        ExecStart = "${pkgs.xdg-desktop-portal-gnome}/libexec/xdg-desktop-portal-gnome";
-        Restart = "on-failure";
-      };
-    };
+    # xdg-desktop-portal-gnome is auto-wired by NixOS via xdg.portal.extraPortals
+    # above. A manual systemd.user.services override here would create a second
+    # ExecStart= on top of the upstream unit, which systemd refuses ("Service
+    # has more than one ExecStart= setting"). That refusal cascades into
+    # gnome-session "Failed to fill session" and breaks the GDM greeter.
 
     # Set keyboard layout and Wayland environment variables
     environment.sessionVariables = {
@@ -425,6 +426,19 @@ in
     environment.systemPackages =
       with pkgs;
       [
+        # GDM greeter spawns `gnome-session` via PAM user PATH (not the
+        # display-manager.service PATH), so it must be in systemPackages or
+        # the greeter dies with "Unable to run session" (ENOENT).
+        gnome-session
+
+        # gdm ships `share/gnome-session/sessions/gnome-login.session` (the
+        # greeter session definition). The greeter user's XDG_DATA_DIRS is
+        # rebuilt by PAM and does NOT include gdm's nix-store share/, so the
+        # only reliable way to make gnome-login.session visible is to merge
+        # gdm into systemPath (/run/current-system/sw/share). Without this
+        # gnome-session fails with "Failed to fill session" and GDM gives up.
+        gdm
+
         # Terminal (REQUIRED - keybindings depend on this!)
         wezterm
 

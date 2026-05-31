@@ -14,6 +14,11 @@ in
         user = "git";
         identityFile = cfg.sshKey;
       };
+      "forgejo.gamzatlab.net" = {
+        hostname = "forgejo.gamzatlab.net";
+        user = "gamzat";
+        identityFile = cfg.sshKey;
+      };
     };
   };
 }
