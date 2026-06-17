@@ -15,7 +15,7 @@ in
   home.packages = with pkgs; [
     ripgrep
     kubectl
-    libsForQt5.qt5.qtdeclarative # QML
+    qt5.qtdeclarative # QML
     claude-code
     opencode
     rebuild-script
