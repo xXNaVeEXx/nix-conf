@@ -137,6 +137,15 @@ in
 
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
+  
+
+  # Langhorn
+  services.openiscsi = {
+    enable = true;
+    name = "iqn.2026-06.net.gamzatlab:nixos";   # beliebige eindeutige IQN
+  };
+  boot.supportedFilesystems = [ "nfs" ];
+  
 
   # Install firefox.
   programs.firefox.enable = true;
@@ -154,6 +163,7 @@ in
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    nfs-utils # Langhorn / NFS
     android-tools # adb for android emulation
     wayvnc # Native Wayland VNC server
     wl-clipboard
