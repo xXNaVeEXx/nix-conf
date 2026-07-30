@@ -52,6 +52,26 @@ in
     ../../modules/networking/tailscale.nix
   ];
 
+  # NVMe-Datenplatte für Longhorn (Storage-Umbau 2026-07-30).
+  #
+  # WARUM: alle VM-Platten dieses Hosts liegen auf einer 7200er-HDD. Longhorn
+  # hält darauf die Datenbanken der Plattform (Forgejo, ki-platform) und alle
+  # PVCs — unter CI-Last stand die HDD, was zu etcd-Timeouts, sterbenden
+  # Longhorn-Engines und Postgres-I/O-Fehlern führte. Diese Platte kommt aus dem
+  # bis dahin ungenutzten NVMe-Thin-Pool des Proxmox-Hosts (scsi5, 200 GB) und
+  # nimmt ausschließlich die Longhorn-Replikate auf; Docker-Build-Layer bleiben
+  # bewusst auf der HDD und können die Plattform damit nicht mehr aushungern.
+  #
+  # Der Mount MUSS deklarativ sein: /etc/fstab ist unter NixOS ein
+  # schreibgeschützter Symlink, ein Laufzeit-Mount wäre nach dem nächsten Reboot
+  # weg — Longhorn würde dann unbemerkt auf das Wurzel-Dateisystem schreiben.
+  # Hintergrund: Plattform-Wiki, Projekt "proxmox-host".
+  fileSystems."/var/lib/longhorn-ssd" = {
+    device = "/dev/disk/by-uuid/a6e03ed6-3c2b-4048-845c-3d5294927742";
+    fsType = "ext4";
+    options = [ "noatime" "discard" ];
+  };
+
   mySystem = {
 
     networking.tailscale = true;

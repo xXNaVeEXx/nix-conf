@@ -305,9 +305,17 @@ let
 in
 
 {
-  imports = [
-    mangowc.nixosModules.mango
-  ];
+  # KEIN Modul-Import mehr (2026-07-30): nixpkgs liefert seit dem flake.lock-Bump
+  # selbst `programs.mango` (nixos/modules/programs/wayland/mango.nix). Das
+  # Upstream-Flake-Modul zusätzlich zu importieren ergab "option already declared"
+  # und blockierte damit die Auswertung der GESAMTEN Konfiguration — kein Rebuild
+  # war mehr möglich (auch system.autoUpgrade lief deshalb ins Leere).
+  #
+  # Wir nutzen jetzt bewusst das nixpkgs-Modul: es kennt genau die zwei Optionen,
+  # die unten gesetzt werden (`enable`, `package`), und richtet zusätzlich
+  # xdg-Portale und die Display-Manager-Session ein. Der Flake-Input bleibt als
+  # PAKET-Quelle in Gebrauch (mangowc.packages.${pkgs.system}.default im
+  # symlinkJoin unten) — es entfällt nur sein NixOS-Modul.
 
   config = lib.mkIf (config.mySystem.desktop.enable && config.mySystem.desktop.mangowc) {
     # Enable MangoWC compositor with custom config
