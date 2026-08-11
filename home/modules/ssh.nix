@@ -19,6 +19,13 @@ in
         user = "gamzat";
         identityFile = cfg.sshKey;
       };
+      # Git-Zugriff auf Forgejo: NodePort 30022, nur auf .82 erreichbar
+      "forgejo-git" = {
+        hostname = "192.168.178.82";
+        port = 30022;
+        user = "git";
+        identityFile = cfg.sshKey;
+      };
     };
   };
 }
