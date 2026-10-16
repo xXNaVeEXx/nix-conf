@@ -13,5 +13,6 @@
     ./dev.nix
     ./apps.nix
     ./kube.nix
+    ./pi.nix
   ];
 }

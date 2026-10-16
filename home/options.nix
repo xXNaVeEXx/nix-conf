@@ -40,5 +40,7 @@
     };
 
     kube.enable = lib.mkEnableOption "~/.config/.kube symlink from dotfiles";
+
+    pi.enable = lib.mkEnableOption "Pi coding agent + ~/.pi/agent sync over dotfiles repo";
   };
 }

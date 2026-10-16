@@ -34,6 +34,11 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    pi = {
+      url = "github:earendil-works/pi/stable";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -47,13 +52,14 @@
       mangowc,
       quickshell,
       sops-nix,
+      pi,
     }:
     let
       mkHomeLinux =
         module:
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { inherit dotfiles sops-nix; };
+          extraSpecialArgs = { inherit dotfiles sops-nix pi; };
           modules = [
             module
             {
@@ -72,7 +78,7 @@
       nixosConfigurations = {
         nixos = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
-          specialArgs = { inherit dotfiles mangowc quickshell sops-nix; };
+          specialArgs = { inherit dotfiles mangowc quickshell sops-nix pi; };
           modules = [
             ./hosts/nixos/configuration.nix
 
@@ -81,7 +87,7 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit dotfiles mangowc quickshell sops-nix; };
+              home-manager.extraSpecialArgs = { inherit dotfiles mangowc quickshell sops-nix pi; };
               home-manager.users.gamzat = import ./home/gamzat.nix;
               home-manager.users.root = import ./home/root.nix;
               home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
@@ -93,7 +99,7 @@
       darwinConfigurations = {
         macbookpro = darwin.lib.darwinSystem {
           system = "aarch64-darwin";
-          specialArgs = { inherit dotfiles sops-nix; };
+          specialArgs = { inherit dotfiles sops-nix pi; };
           modules = [
             ./hosts/macbookpro/configuration.nix
             sops-nix.darwinModules.sops
@@ -103,7 +109,7 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit dotfiles sops-nix; };
+              home-manager.extraSpecialArgs = { inherit dotfiles sops-nix pi; };
               home-manager.users.gamzat = import ./home/gamzat-darwin.nix;
               home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
             }

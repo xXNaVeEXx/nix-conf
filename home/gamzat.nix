@@ -26,6 +26,7 @@ in
   myHome = {
     kube.enable = true;
     dev.enable = true;
+    pi.enable = true;
   };
 
   home.packages = with pkgs; [

@@ -13,6 +13,8 @@
 
   programs.home-manager.enable = true;
 
+  myHome.pi.enable = true;
+
   # Per-machine extras beyond the dev base
   home.packages = with pkgs; [
     dioxus-cli

@@ -14,6 +14,7 @@
   myHome = {
     kube.enable = true;
     dev.enable = true;
+    pi.enable = true;
   };
 
   programs.direnv = {

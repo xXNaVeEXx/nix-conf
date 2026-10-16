@@ -27,6 +27,8 @@ in
     export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH"
   '';
 
+  myHome.pi.enable = true;
+
   home.packages = with pkgs; [
     claude-code
     opencode
