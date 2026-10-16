@@ -62,6 +62,10 @@ let
       fi
 
       # files changed locally since last sync (mtime newer than state file)
+      # AND whose content actually differs from the clone. The content check
+      # is load-bearing: step 5's pull sets local mtimes to the pull time, so
+      # a stale machine would otherwise push origin's older state right back
+      # over a newer remote commit (real rollback incident 2026-10-16).
       ( cd "$AGENT" &&
         find skills extensions -type f -newer "$STATE" \
           ! -path '*/node_modules/*' ! -path '*__pycache__*' \
@@ -71,7 +75,10 @@ let
                  hermes-mind/config.json; do
           if [ -f "$f" ] && [ "$f" -nt "$STATE" ]; then printf '%s\0' "$f"; fi
         done
-      ) | rsync -a --from0 --files-from=- "$AGENT/" "$SRC/"
+      ) | while IFS= read -r -d ''' rel; do
+          if [ -f "$SRC/$rel" ] && cmp -s "$AGENT/$rel" "$SRC/$rel"; then continue; fi
+          printf '%s\0' "$rel"
+        done | rsync -a --from0 --files-from=- "$AGENT/" "$SRC/"
 
       # deletions: files gone locally but present in the clone, whose clone
       # copy is not newer than our last sync (i.e. nobody else changed them
