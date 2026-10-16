@@ -52,23 +52,47 @@ let
     fi
 
     if [ "$MODE" = push ]; then
-      # 4a. Push local state into the clone (mirror, incl. deletions).
-      for f in AGENTS.md settings.json keybindings.json; do
-        [ -f "$AGENT/$f" ] && rsync -a "$AGENT/$f" "$SRC/$f"
-      done
-      rsync -a --delete --exclude '__pycache__' "$AGENT/skills/" "$SRC/skills/"
-      rsync -a --delete --exclude node_modules --exclude '*.log' \
-        --exclude '__pycache__' "$AGENT/extensions/" "$SRC/extensions/"
-      for f in MEMORY.md USER.md config.json; do
-        [ -f "$AGENT/hermes-mind/$f" ] && rsync -a "$AGENT/hermes-mind/$f" "$SRC/hermes-mind/$f"
-      done
+      # 4a. MTIME-GUARDED push: only files the user actually changed on THIS
+      #     machine since the last successful sync are pushed. Stale local
+      #     copies (older than last sync) can never overwrite newer remote
+      #     versions synced from another machine.
+      STATE="$AGENT/.pi-sync-state"
+      if [ ! -f "$STATE" ]; then
+        touch "$STATE"   # first guarded run: baseline = now, nothing pushed
+      fi
 
-      # 4b. Commit + push (tolerant: next run retries).
+      # files changed locally since last sync (mtime newer than state file)
+      ( cd "$AGENT" &&
+        find skills extensions -type f -newer "$STATE" \
+          ! -path '*/node_modules/*' ! -path '*__pycache__*' \
+          ! -name '*.log' -print0 2>/dev/null;
+        for f in AGENTS.md settings.json keybindings.json \
+                 hermes-mind/MEMORY.md hermes-mind/USER.md \
+                 hermes-mind/config.json; do
+          if [ -f "$f" ] && [ "$f" -nt "$STATE" ]; then printf '%s\0' "$f"; fi
+        done
+      ) | rsync -a --from0 --files-from=- "$AGENT/" "$SRC/"
+
+      # deletions: files gone locally but present in the clone, whose clone
+      # copy is not newer than our last sync (i.e. nobody else changed them
+      # since) -> remove them in the clone as well.
+      while IFS= read -r rel; do
+        if [ ! -e "$AGENT/$rel" ] && [ ! "$SRC/$rel" -nt "$STATE" ]; then
+          rm -f -- "$SRC/$rel"
+        fi
+      done < <( cd "$SRC" 2>/dev/null && find skills extensions -type f \
+                  ! -path '*/node_modules/*' 2>/dev/null )
+      find "$SRC/skills" "$SRC/extensions" -type d -empty -delete 2>/dev/null || true
+
+      # 4b. Commit + push (tolerant: next run retries). Only refresh the
+      #     state baseline after a clean push so failed runs re-send.
       git -C "$CLONE" add pi/
       if ! git -C "$CLONE" diff --cached --quiet; then
         git -C "$CLONE" commit -q -m "chore(pi): auto-sync agent state" || true
       fi
-      git -C "$CLONE" push origin main >/dev/null 2>&1 || true
+      if git -C "$CLONE" push origin main >/dev/null 2>&1; then
+        touch "$STATE"
+      fi
     fi
 
     # 5. Pull clone state back over local (source of truth after step 4).
