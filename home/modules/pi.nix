@@ -97,12 +97,21 @@ in
         };
       };
       timers.pi-sync = {
-        WantedBy = [ "timers.target" ];
+        Unit = {
+          Description = "Run pi-sync every 20 minutes";
+        };
         Timer = {
           OnBootSec = "3min";
           OnUnitActiveSec = "20min";
         };
       };
     };
+
+    # home-manager's WantedBy shortcut is not available for timers in this
+    # version, so enable+start explicitly after the unit files are written.
+    home.activation.piSyncTimer = lib.hm.dag.entryAfter [ "piSyncBootstrap" ] ''
+      $DRY_RUN_CMD systemctl --user daemon-reload || true
+      $DRY_RUN_CMD systemctl --user enable --now pi-sync.timer >/dev/null 2>&1 || true
+    '';
   };
 }
