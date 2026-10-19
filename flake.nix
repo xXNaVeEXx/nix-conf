@@ -56,9 +56,9 @@
     }:
     let
       mkHomeLinux =
-        module:
+        system: module:
         home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          pkgs = nixpkgs.legacyPackages."${system}";
           extraSpecialArgs = { inherit dotfiles sops-nix pi; };
           modules = [
             module
@@ -71,8 +71,8 @@
         };
 
       # Aliased entries — the .nix module is shared by multiple host attribute names
-      cachyHome = mkHomeLinux ./home/gamzat-cachyos.nix;
-      sharedHome = mkHomeLinux ./home/gamzat-shared.nix;
+      cachyHome = mkHomeLinux "x86_64-linux" ./home/gamzat-cachyos.nix;
+      sharedHome = mkHomeLinux "x86_64-linux" ./home/gamzat-shared.nix;
     in
     {
       nixosConfigurations = {
@@ -123,8 +123,9 @@
         "gamzat@cachydeck" = cachyHome;
         "gamzat@shared" = sharedHome;
         "gamzat@gamzat-dev" = sharedHome;
-        "maga@maga-dev" = mkHomeLinux ./home/maga-dev.nix;
-        "marv@marv-dev" = mkHomeLinux ./home/marv-dev.nix;
+        "maga@maga-dev" = mkHomeLinux "x86_64-linux" ./home/maga-dev.nix;
+        "marv@marv-dev" = mkHomeLinux "x86_64-linux" ./home/marv-dev.nix;
+        "gamzat@omarchy" = mkHomeLinux "aarch64-linux" ./home/gamzat-omarchy.nix;
       };
     };
 }
