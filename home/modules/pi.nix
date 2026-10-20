@@ -163,6 +163,9 @@ in
           OnBootSec = "3min";
           OnUnitActiveSec = "20min";
         };
+        Install = {
+          WantedBy = [ "timers.target" ];
+        };
       };
     };
 
@@ -178,8 +181,8 @@ in
       };
     };
 
-    # home-manager's WantedBy shortcut is not available for timers in this
-    # version, so enable+start explicitly after the unit files are written.
+    # Belt and suspenders: the Install.WantedBy above makes `systemctl --user
+    # enable` work; this activation step applies it immediately on switch.
     home.activation.piSyncTimer = lib.hm.dag.entryAfter [ "piSyncBootstrap" ] ''
       $DRY_RUN_CMD systemctl --user daemon-reload || true
       $DRY_RUN_CMD systemctl --user enable --now pi-sync.timer >/dev/null 2>&1 || true
