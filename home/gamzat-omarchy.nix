@@ -30,6 +30,8 @@ in
   myHome.pi.enable = true;
 
   home.packages = with pkgs; [
+    blender
+    godot_4
     claude-code
     opencode
     rebuild-script
