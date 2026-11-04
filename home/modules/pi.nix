@@ -111,7 +111,7 @@ let
         rsync -a --delete --exclude '__pycache__' "$SRC/skills/" "$AGENT/skills/"
       fi
       if [ -d "$SRC/extensions" ]; then
-        rsync -a --delete --exclude node_modules --exclude '*.log' \
+        rsync -a --delete --exclude node_modules --exclude '*.log' --exclude '.pi-types' \
           "$SRC/extensions/" "$AGENT/extensions/"
       fi
       for f in MEMORY.md USER.md config.json; do
