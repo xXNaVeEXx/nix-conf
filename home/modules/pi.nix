@@ -129,6 +129,24 @@ let
       fi
     fi
   '';
+
+  # Hält die nvm-Node (Kanal LTS, default-Alias lts/*) aktuell: installiert
+  # monatlich das aktuellste LTS-Release und migriert globale npm-Pakete.
+  nvmUpdate = pkgs.writeShellScriptBin "nvm-lts-update" ''
+    set +e
+    [ -d "$HOME/.nvm" ] || exit 0
+    PATH="${lib.makeBinPath (with pkgs; [ coreutils curl ])}:$PATH"
+    . "$HOME/.nvm/nvm.sh"
+    OLD="$(nvm version default 2>/dev/null)"
+    nvm install --lts --latest-npm >/dev/null 2>&1
+    NEW="$(nvm version lts/* 2>/dev/null)"
+    nvm alias default lts/* >/dev/null 2>&1
+    if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" != "$NEW" ] \
+       && [ "$OLD" != "system" ] && [ "$OLD" != "none" ]; then
+      nvm reinstall-packages "$OLD" >/dev/null 2>&1
+    fi
+    exit 0
+  '';
 in
 {
   config = lib.mkIf cfg.enable {
@@ -167,6 +185,29 @@ in
           WantedBy = [ "timers.target" ];
         };
       };
+
+      services.nvm-lts-update = {
+        Unit = {
+          Description = "Installiert aktuellstes Node-LTS via nvm, haelt default-Alias auf lts/*";
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${nvmUpdate}/bin/nvm-lts-update";
+        };
+      };
+      timers.nvm-lts-update = {
+        Unit = {
+          Description = "Monatliches nvm-LTS-Update (z. B. neue Node-LTS-Patches)";
+        };
+        Timer = {
+          OnCalendar = "monthly";
+          Persistent = true;
+          RandomizedDelaySec = "30min";
+        };
+        Install = {
+          WantedBy = [ "timers.target" ];
+        };
+      };
     };
 
     # macOS: LaunchAgent instead of systemd (same 20-minute cadence).
@@ -186,6 +227,10 @@ in
     home.activation.piSyncTimer = lib.hm.dag.entryAfter [ "piSyncBootstrap" ] ''
       $DRY_RUN_CMD systemctl --user daemon-reload || true
       $DRY_RUN_CMD systemctl --user enable --now pi-sync.timer >/dev/null 2>&1 || true
+    '';
+
+    home.activation.nvmLtsTimer = lib.hm.dag.entryAfter [ "piSyncTimer" ] ''
+      $DRY_RUN_CMD systemctl --user enable --now nvm-lts-update.timer >/dev/null 2>&1 || true
     '';
   };
 }
