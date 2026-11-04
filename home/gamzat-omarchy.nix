@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, dotfiles, ... }:
 
 let
   rebuild-script = import ../lib/rebuild-script.nix { inherit pkgs; };
@@ -28,6 +28,17 @@ in
   '';
 
   myHome.pi.enable = true;
+
+  # Nix-wezterm hat keinen EGL-Mesa-Vendor im Closure → kein Fenster auf
+  # Asahi (eglGetDisplay schlägt fehl). Auf diesem Host die System-WezTerm
+  # aus pacman nutzen (linkt direkt gegen Arch-Mesa/asahi); die Config aus
+  # dem dotfiles-Repo trotzdem weiter deployen, sonst startet die
+  # pacman-WezTerm mit Defaults.
+  myHome.apps.wezterm = lib.mkForce false;
+  home.file.".config/wezterm" = {
+    source = "${dotfiles}/wezterm";
+    recursive = true;
+  };
 
   home.packages = with pkgs; [
     blender

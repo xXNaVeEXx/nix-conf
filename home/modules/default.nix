@@ -3,6 +3,7 @@
     ../options.nix
 
     ./dotfiles-base.nix
+    ./fish.nix
     ./tmux.nix
     ./shell.nix
     ./programs.nix

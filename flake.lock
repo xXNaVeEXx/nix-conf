@@ -23,11 +23,11 @@
     "dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1792497942,
-        "narHash": "sha256-YZqdjQNg4vRy3KbuMhXGrzw/uBPyEjetiXRkXlNoQV4=",
+        "lastModified": 1793814899,
+        "narHash": "sha256-edCp7+ibIi0Tq7zyOUgdRPyd/EAqpDwDYrf9OMr1Tss=",
         "owner": "xXNaVeEXx",
         "repo": "dotfiles",
-        "rev": "dccbe459533e6e500fcb2d902dfe6ca1d2a31fc9",
+        "rev": "95beb6250f8ed977fed1c6301c443bf948ca878d",
         "type": "github"
       },
       "original": {
@@ -189,11 +189,11 @@
         "nixpkgs-darwin-x64": "nixpkgs-darwin-x64"
       },
       "locked": {
-        "lastModified": 1792090647,
-        "narHash": "sha256-AsutbwnjiwwLkB5tqLW+1GdGZyLmXsU0W+SNdNhJu7U=",
+        "lastModified": 1792621753,
+        "narHash": "sha256-N9NOpiiZTbOMDMV+CxvJAgtLjJJ1/8NJBGS0cFHkhsc=",
         "owner": "earendil-works",
         "repo": "pi",
-        "rev": "71023aec1546d6d677a65669c5665c0927ce0dd0",
+        "rev": "4a080252f06caf63a525d7873c5d94d3c23887e0",
         "type": "github"
       },
       "original": {
