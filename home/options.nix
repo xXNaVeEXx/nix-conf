@@ -19,6 +19,12 @@
         example = "~/.ssh/id_ed25519";
         description = "Path to SSH private key for github.com. null disables the ssh module.";
       };
+      privateSshKey = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "~/.ssh/id_ed25519_navee";
+        description = "Second (private-account) GitHub key. When set, an ssh host alias 'github-navee' (github.com + this key) is generated; use it in remote URLs git@github-navee:owner/repo.git.";
+      };
     };
 
     sops = {

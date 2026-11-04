@@ -35,6 +35,8 @@ in
   # dem dotfiles-Repo trotzdem weiter deployen, sonst startet die
   # pacman-WezTerm mit Defaults.
   myHome.apps.wezterm = lib.mkForce false;
+  # Privater GitHub-Account (xXNaVeEXx) für dotfiles/nix-conf: eigener SSH-Host-Alias.
+  myHome.identity.privateSshKey = "~/.ssh/id_ed25519_navee";
   home.file.".config/wezterm" = {
     source = "${dotfiles}/wezterm";
     recursive = true;

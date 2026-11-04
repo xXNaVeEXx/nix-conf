@@ -26,6 +26,14 @@ in
         user = "git";
         identityFile = cfg.sshKey;
       };
+    } // lib.optionalAttrs (cfg.privateSshKey != null) {
+      # Alias für private Repos: gleicher GitHub-Host, zweiter Account-Key.
+      # Remote-URLs dann git@github-navee:owner/repo.git.
+      "github-navee" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = cfg.privateSshKey;
+      };
     };
   };
 }

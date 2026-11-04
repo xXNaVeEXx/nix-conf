@@ -36,8 +36,12 @@
     };
 
     pi = {
-      url = "github:earendil-works/pi/stable";
-      inputs.nixpkgs.follows = "nixpkgs";
+      # Pinned on main-HEAD rev (deterministic): the v1.5.0 tag itself fails to
+      # build under nix (workspace lockfile without integrity; fixed upstream in
+      # d71c66e "pack pi-schema for the install lock"). Bump the rev for updates.
+      url = "github:earendil-works/pi/707888ece685778881c40d232880c5a0b93a12f1";
+      # NO nixpkgs follows: our pinned nixpkgs' import-npm-lock chokes on pi's
+      # package-lock ("attribute 'integrity' missing"); pi ships its own tested lock.
     };
   };
 

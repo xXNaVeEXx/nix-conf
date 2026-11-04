@@ -29,6 +29,10 @@ in
 
   myHome.pi.enable = true;
 
+  # Privater GitHub-Account (xXNaVeEXx) für dotfiles/nix-conf: eigener SSH-Host-Alias.
+  # Key liegt als id_ed25519_navee neben dem bestehenden mydevkey (hier: privater Key).
+  myHome.identity.privateSshKey = "~/.ssh/id_ed25519_navee";
+
   home.packages = with pkgs; [
     claude-code
     opencode
