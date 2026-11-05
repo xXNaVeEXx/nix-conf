@@ -8,6 +8,13 @@ in
   programs.ssh = lib.mkIf (cfg.sshKey != null) {
     enable = true;
     enableDefaultConfig = false;
+    # Privaten Key global anbieten: Root-Logins per IP (VPS) ohne eigenen Host-Block
+    # bekommen dann Key-Auth statt Passwort-Fallback. settings."*" wird von HM
+    # als letzter Host-*-Block gerendert, konkrete matchBlocks behalten Priorität.
+    settings."*" = lib.optionalAttrs (cfg.privateSshKey != null) {
+      identityFile = [ cfg.privateSshKey ];
+      addKeysToAgent = "yes";
+    };
     matchBlocks = {
       "github.com" = {
         hostname = "github.com";
