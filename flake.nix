@@ -101,6 +101,11 @@
         };
       };
 
+      # VERALTET: macbookpro war die macOS-Installation (nix-darwin) auf der
+      # MacBook-Pro-Hardware. Lauf seit Asahi-Umstellung nicht mehr (Tailscale
+      # offline >36 Tage); dieselbe Hardware faehrt jetzt omarchy (Linux,
+      # homeConfigurations.gamzat@omarchy). Eintrag bleibt fuer den Fall einer
+      # macOS-Rueckfallebene, wird aber nicht mehr gepflegt.
       darwinConfigurations = {
         macbookpro = darwin.lib.darwinSystem {
           system = "aarch64-darwin";
