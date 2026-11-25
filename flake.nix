@@ -36,10 +36,11 @@
     };
 
     pi = {
-      # Pinned on main-HEAD rev (deterministic): the v1.5.0 tag itself fails to
-      # build under nix (workspace lockfile without integrity; fixed upstream in
-      # d71c66e "pack pi-schema for the install lock"). Bump the rev for updates.
-      url = "github:earendil-works/pi/b4afdddf44e059c67ccf5097e5317d913521b470";
+      # Pinned on tag v1.6.1 (deterministic; tags since the upstream fix
+      # d71c66e "pack pi-schema for the install lock" build under nix).
+      # v1.6.1 is the minimum for the glm-5.4 model catalog on pi.dev
+      # (catalog minimumPiVersion 1.5.3, supportDeveloperRole compat).
+      url = "github:earendil-works/pi/ef4a1cfcca62b77ad3558337ff3e1c7f6beeadfe";
       # NO nixpkgs follows: our pinned nixpkgs' import-npm-lock chokes on pi's
       # package-lock ("attribute 'integrity' missing"); pi ships its own tested lock.
     };
